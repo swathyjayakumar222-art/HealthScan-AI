@@ -1,243 +1,494 @@
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
 import mysql.connector
-from pypdf import PdfReader
 import os
 import re
 
 from dotenv import load_dotenv
+from pypdf import PdfReader
+from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 from google import genai
 
 
-# -----------------------------------
-# LOAD ENVIRONMENT VARIABLES
-# -----------------------------------
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
 load_dotenv()
 
-client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
-)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
 
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-# -----------------------------------
-# FLASK APP
-# -----------------------------------
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 app = Flask(__name__)
 CORS(app)
 
+UPLOAD_FOLDER = os.path.join(app.root_path, "uploads")
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# -----------------------------------
-# UPLOAD FOLDER
-# -----------------------------------
-
-UPLOAD_FOLDER = "uploads"
-
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
 
 
-# -----------------------------------
+# ============================================================
 # DATABASE CONNECTION
-# -----------------------------------
+# ============================================================
 
 def get_db_connection():
-
-    connection = mysql.connector.connect(
+    return mysql.connector.connect(
         host="localhost",
         user="root",
-       ,password=os.getenv("12345"),
+        password=MYSQL_PASSWORD or "",
         database="healthscan"
     )
 
-    return connection
+
+# ============================================================
+# HELPER: DATABASE CLEANUP
+# ============================================================
+
+def close_db(cursor=None, db=None):
+    if cursor is not None:
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+    if db is not None:
+        try:
+            db.close()
+        except Exception:
+            pass
 
 
-# -----------------------------------
-# HOME
-# -----------------------------------
+# ============================================================
+# HOME AND HEALTH CHECK
+# ============================================================
 
 @app.route("/")
 def home():
+    return jsonify({
+        "message": "HealthScan AI Backend is running!"
+    })
 
-    return "HealthScan AI Backend is running!"
-
-
-# -----------------------------------
-# HEALTH API TEST
-# -----------------------------------
 
 @app.route("/api/health")
 def health():
-
     return jsonify({
-        "message": "HealthScan AI API is working!",
-        "status": "success"
+        "status": "healthy",
+        "message": "HealthScan AI API is working"
     })
 
-
-# -----------------------------------
-# DATABASE TEST
-# -----------------------------------
 
 @app.route("/api/db-test")
 def db_test():
+    db = None
+    cursor = None
 
-    connection = get_db_connection()
+    try:
+        db = get_db_connection()
+        cursor = db.cursor()
+        cursor.execute("SELECT 1")
+        result = cursor.fetchone()
 
-    cursor = connection.cursor()
+        return jsonify({
+            "database": "connected",
+            "result": result[0]
+        })
 
-    cursor.execute("SELECT DATABASE()")
+    except Exception as e:
+        app.logger.exception("DATABASE TEST ERROR")
+        return jsonify({
+            "database": "error",
+            "message": str(e)
+        }), 500
 
-    result = cursor.fetchone()
-
-    cursor.close()
-    connection.close()
-
-    return jsonify({
-        "database": result[0],
-        "status": "connected"
-    })
+    finally:
+        close_db(cursor, db)
 
 
-# -----------------------------------
-# ADD VITALS
-# -----------------------------------
+# ============================================================
+# SIGNUP
+# ============================================================
+
+@app.route("/api/signup", methods=["POST"])
+def signup():
+    db = None
+    cursor = None
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        name = data.get("name")
+        email = data.get("email")
+        password = data.get("password")
+
+        if not name or not email or not password:
+            return jsonify({
+                "message": "Please fill in all fields."
+            }), 400
+
+        db = get_db_connection()
+        cursor = db.cursor()
+
+        cursor.execute(
+            "SELECT id FROM users WHERE email = %s",
+            (email,)
+        )
+
+        if cursor.fetchone():
+            return jsonify({
+                "message": "Email already registered."
+            }), 409
+
+        hashed_password = generate_password_hash(password)
+
+        cursor.execute(
+            """
+            INSERT INTO users (name, email, password)
+            VALUES (%s, %s, %s)
+            """,
+            (name, email, hashed_password)
+        )
+
+        db.commit()
+
+        return jsonify({
+            "message": "Account created successfully!"
+        }), 201
+
+    except Exception as e:
+        if db:
+            db.rollback()
+
+        app.logger.exception("SIGNUP ERROR")
+
+        return jsonify({
+            "message": "Signup failed.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
+
+
+# ============================================================
+# LOGIN
+# ============================================================
+
+@app.route("/api/login", methods=["POST"])
+def login():
+    db = None
+    cursor = None
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        email = data.get("email")
+        password = data.get("password")
+
+        if not email or not password:
+            return jsonify({
+                "message": "Please enter email and password."
+            }), 400
+
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT id, name, email, password FROM users WHERE email = %s",
+            (email,)
+        )
+
+        user = cursor.fetchone()
+
+        if not user or not check_password_hash(
+            user["password"], password
+        ):
+            return jsonify({
+                "message": "Invalid email or password."
+            }), 401
+
+        return jsonify({
+            "message": "Login successful!",
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"]
+            }
+        }), 200
+
+    except Exception as e:
+        app.logger.exception("LOGIN ERROR")
+
+        return jsonify({
+            "message": "Login failed.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
+
+
+# ============================================================
+# SAVE VITALS
+# ============================================================
 
 @app.route("/api/vitals", methods=["POST"])
-def add_vitals():
+def save_vitals():
+    db = None
+    cursor = None
 
-    data = request.json
+    try:
+        data = request.get_json(silent=True) or {}
 
-    connection = get_db_connection()
+        fields = [
+            "heart_rate",
+            "spo2",
+            "systolic_bp",
+            "diastolic_bp",
+            "temperature"
+        ]
 
-    cursor = connection.cursor()
+        values = [data.get(field) for field in fields]
 
-    query = """
-        INSERT INTO vitals
-        (heart_rate, spo2, systolic_bp, diastolic_bp, temperature)
-        VALUES (%s, %s, %s, %s, %s)
-    """
+        if all(value is None for value in values):
+            return jsonify({
+                "message": "Provide at least one vital value."
+            }), 400
 
-    values = (
-        data["heart_rate"],
-        data["spo2"],
-        data["systolic_bp"],
-        data["diastolic_bp"],
-        data["temperature"]
-    )
+        db = get_db_connection()
+        cursor = db.cursor()
 
-    cursor.execute(query, values)
+        cursor.execute(
+            """
+            INSERT INTO vitals
+            (
+                heart_rate, spo2, systolic_bp,
+                diastolic_bp, temperature
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            tuple(values)
+        )
 
-    connection.commit()
+        db.commit()
 
-    cursor.close()
-    connection.close()
+        return jsonify({
+            "message": "Vitals saved successfully!"
+        }), 201
 
-    return jsonify({
-        "message": "Vitals saved successfully!",
-        "status": "success"
-    })
+    except Exception as e:
+        if db:
+            db.rollback()
+
+        app.logger.exception("SAVE VITALS ERROR")
+
+        return jsonify({
+            "message": "Could not save vitals.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
 
 
-# -----------------------------------
+# ============================================================
 # GET VITALS
-# -----------------------------------
+# ============================================================
 
 @app.route("/api/vitals", methods=["GET"])
 def get_vitals():
+    db = None
+    cursor = None
 
-    connection = get_db_connection()
+    try:
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
 
-    cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT id, heart_rate, spo2, systolic_bp,
+                   diastolic_bp, temperature, recorded_at
+            FROM vitals
+            ORDER BY recorded_at ASC
+            """
+        )
 
-    cursor.execute("""
-        SELECT *
-        FROM vitals
-        ORDER BY recorded_at DESC
-    """)
+        vitals = cursor.fetchall()
 
-    vitals = cursor.fetchall()
+        for item in vitals:
+            if item.get("recorded_at"):
+                item["recorded_at"] = item[
+                    "recorded_at"
+                ].strftime("%Y-%m-%d %H:%M:%S")
 
-    cursor.close()
-    connection.close()
+        return jsonify(vitals)
 
-    return jsonify(vitals)
+    except Exception as e:
+        app.logger.exception("GET VITALS ERROR")
+
+        return jsonify({
+            "message": "Could not load vitals.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
 
 
-# -----------------------------------
-# UPLOAD MEDICAL REPORT
-# -----------------------------------
+# ============================================================
+# GET REPORTS
+# ============================================================
+
+@app.route("/api/reports", methods=["GET"])
+def get_reports():
+    db = None
+    cursor = None
+
+    try:
+        db = get_db_connection()
+        cursor = db.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT id, filename, report_text,
+                   ai_analysis, uploaded_at
+            FROM reports
+            ORDER BY uploaded_at DESC
+            """
+        )
+
+        reports = cursor.fetchall()
+
+        for report in reports:
+            if report.get("uploaded_at"):
+                report["uploaded_at"] = report[
+                    "uploaded_at"
+                ].strftime("%Y-%m-%d %H:%M:%S")
+
+        return jsonify(reports)
+
+    except Exception as e:
+        app.logger.exception("GET REPORTS ERROR")
+
+        return jsonify({
+            "message": "Could not load reports.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
+
+
+# ============================================================
+# UPLOAD PDF REPORT
+# ============================================================
 
 @app.route("/api/upload-report", methods=["POST"])
 def upload_report():
+    db = None
+    cursor = None
+    filepath = None
 
-    if "file" not in request.files:
+    try:
+        if "file" not in request.files:
+            return jsonify({
+                "message": "No file uploaded."
+            }), 400
+
+        file = request.files["file"]
+
+        if not file.filename:
+            return jsonify({
+                "message": "No file selected."
+            }), 400
+
+        filename = secure_filename(file.filename)
+
+        if not filename or not filename.lower().endswith(".pdf"):
+            return jsonify({
+                "message": "Only PDF files are supported."
+            }), 400
+
+        # Use a unique filename to avoid overwriting other uploads.
+        import uuid
+        stored_filename = f"{uuid.uuid4().hex}_{filename}"
+
+        filepath = os.path.join(
+            app.config["UPLOAD_FOLDER"],
+            stored_filename
+        )
+
+        file.save(filepath)
+
+        reader = PdfReader(filepath)
+        pages_text = []
+
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                pages_text.append(page_text)
+
+        report_text = "\n".join(pages_text).strip()
+
+        if not report_text:
+            return jsonify({
+                "message": (
+                    "No selectable text was found in this PDF. "
+                    "It may be a scanned image and require OCR."
+                ),
+                "text": ""
+            }), 422
+
+        db = get_db_connection()
+        cursor = db.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO reports (filename, report_text)
+            VALUES (%s, %s)
+            """,
+            (filename, report_text)
+        )
+
+        db.commit()
+        report_id = cursor.lastrowid
 
         return jsonify({
-            "message": "No file uploaded"
-        }), 400
+            "message": "Report uploaded successfully!",
+            "report_id": report_id,
+            "filename": filename,
+            "text": report_text
+        }), 201
 
+    except Exception as e:
+        if db:
+            db.rollback()
 
-    file = request.files["file"]
-
-
-    if file.filename == "":
-
-        return jsonify({
-            "message": "No file selected"
-        }), 400
-
-
-    if not file.filename.lower().endswith(".pdf"):
+        app.logger.exception("UPLOAD REPORT ERROR")
 
         return jsonify({
-            "message": "Only PDF files are supported"
-        }), 400
+            "message": "Could not process report.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
 
 
-    file_path = os.path.join(
-        UPLOAD_FOLDER,
-        file.filename
-    )
-
-
-    file.save(file_path)
-
-
-    reader = PdfReader(file_path)
-
-    extracted_text = ""
-
-
-    for page in reader.pages:
-
-        text = page.extract_text()
-
-        if text:
-
-            extracted_text += text + "\n"
-
-
-    return jsonify({
-
-        "message": "Report uploaded successfully!",
-
-        "filename": file.filename,
-
-        "text": extracted_text
-
-    })
-
-
-# -----------------------------------
+# ============================================================
 # EXTRACT VITALS FROM REPORT TEXT
-# -----------------------------------
+# ============================================================
 
 def extract_vitals_from_text(text):
-
-    vitals = {
+    result = {
         "heart_rate": None,
         "spo2": None,
         "systolic_bp": None,
@@ -245,195 +496,300 @@ def extract_vitals_from_text(text):
         "temperature": None
     }
 
-
-    # HEART RATE
-
+    # Heart rate or pulse
     match = re.search(
-        r"Heart Rate\s*[:\-]?\s*(\d+)\s*(?:bpm|BPM)?",
+        r"\b(?:heart\s*rate|pulse(?:\s*rate)?)\b"
+        r"\s*(?:[:=\-]\s*)?(\d{2,3})\b",
         text,
         re.IGNORECASE
     )
 
     if match:
+        result["heart_rate"] = int(match.group(1))
 
-        vitals["heart_rate"] = int(match.group(1))
-
-
-    # SPO2
-
+    # Oxygen saturation
     match = re.search(
-        r"(?:SpO2|SpO₂|Oxygen Saturation)\s*[:\-]?\s*(\d+)\s*%?",
+        r"\b(?:spo\s*2|spo2|oxygen\s*saturation)"
+        r"\b\s*(?:[:=\-]\s*)?(\d{1,3})\s*%?",
         text,
         re.IGNORECASE
     )
 
     if match:
+        result["spo2"] = int(match.group(1))
 
-        vitals["spo2"] = int(match.group(1))
-
-
-    # BLOOD PRESSURE
-
+    # Blood pressure such as BP: 120/80
     match = re.search(
-        r"Blood Pressure\s*[:\-]?\s*(\d+)\s*/\s*(\d+)",
+        r"\b(?:blood\s*pressure|bp)\b"
+        r"\s*(?:[:=\-]\s*)?(\d{2,3})\s*/\s*(\d{2,3})\b",
         text,
         re.IGNORECASE
     )
 
     if match:
+        result["systolic_bp"] = int(match.group(1))
+        result["diastolic_bp"] = int(match.group(2))
+    else:
+        # Alternative labels, if both are present
+        systolic = re.search(
+            r"\bsystolic(?:\s*blood\s*pressure)?\b"
+            r"\s*(?:[:=\-]\s*)?(\d{2,3})\b",
+            text,
+            re.IGNORECASE
+        )
 
-        vitals["systolic_bp"] = int(match.group(1))
+        diastolic = re.search(
+            r"\bdiastolic(?:\s*blood\s*pressure)?\b"
+            r"\s*(?:[:=\-]\s*)?(\d{2,3})\b",
+            text,
+            re.IGNORECASE
+        )
 
-        vitals["diastolic_bp"] = int(match.group(2))
+        if systolic:
+            result["systolic_bp"] = int(systolic.group(1))
 
+        if diastolic:
+            result["diastolic_bp"] = int(diastolic.group(1))
 
-    # TEMPERATURE
-
+    # Temperature; retain the number as printed.
     match = re.search(
-        r"Temperature\s*[:\-]?\s*(\d+(?:\.\d+)?)\s*°?\s*C",
+        r"\b(?:body\s*)?temperature\b"
+        r"\s*(?:[:=\-]\s*)?(\d{2,3}(?:\.\d+)?)"
+        r"\s*°?\s*([CF])?\b",
         text,
         re.IGNORECASE
     )
 
     if match:
+        temperature = float(match.group(1))
+        unit = (match.group(2) or "").upper()
 
-        vitals["temperature"] = float(match.group(1))
+        # Convert Fahrenheit to Celsius for database consistency.
+        if unit == "F":
+            temperature = (temperature - 32) * 5 / 9
+
+        result["temperature"] = round(temperature, 2)
+
+    return result
 
 
-    return vitals
-
-
-# -----------------------------------
+# ============================================================
 # EXTRACT VITALS API
-# -----------------------------------
+# ============================================================
 
 @app.route("/api/extract-vitals", methods=["POST"])
 def extract_vitals():
-
-    data = request.json
-
-    report_text = data.get("text", "")
-
-
-    if not report_text.strip():
-
-        return jsonify({
-
-            "message": "No report text provided"
-
-        }), 400
-
-
-    vitals = extract_vitals_from_text(report_text)
-
-
-    return jsonify({
-
-        "message": "Vitals extracted successfully!",
-
-        "vitals": vitals
-
-    })
-
-
-# -----------------------------------
-# ANALYZE MEDICAL REPORT WITH GEMINI
-# -----------------------------------
-
-@app.route("/api/analyze-report", methods=["POST"])
-def analyze_report():
-
-    data = request.json
-
-    report_text = data.get("text", "")
-
-
-    if not report_text.strip():
-
-        return jsonify({
-
-            "message": "No report text provided"
-
-        }), 400
-
-
-    prompt = f"""
-You are a medical report explanation assistant.
-
-Analyze the following medical report and explain it in
-simple, easy-to-understand language.
-
-IMPORTANT SAFETY RULES:
-
-- Do not diagnose any disease.
-- Do not prescribe medicines.
-- Do not recommend treatments.
-- Do not claim that the user has a medical condition.
-- Use the reference ranges provided in the report when available.
-- Clearly distinguish measured values from reference ranges.
-- If a reference range is missing, say that it is not provided.
-- Point out values that are marked abnormal by the report.
-- Explain medical terms in simple language.
-- Do not invent values that are not present in the report.
-- Encourage the user to discuss concerning or unclear findings
-  with a qualified healthcare professional.
-
-Structure the response as:
-
-1. Report Summary
-
-2. Test Results
-
-3. Explanation of the Results
-
-4. Medical Terms Explained
-
-5. Points to Discuss with a Healthcare Professional
-
-Medical Report:
-
-{report_text}
-"""
-
-
     try:
+        data = request.get_json(silent=True) or {}
+        text = data.get("text", "")
 
-        response = client.models.generate_content(
+        if not isinstance(text, str) or not text.strip():
+            return jsonify({
+                "message": "No report text provided."
+            }), 400
 
-            model="gemini-3.8-flash",
-
-            contents=prompt
-
-        )
-
-
-        return jsonify({
-
-            "message": "Report analyzed successfully!",
-
-            "analysis": response.text
-
-        })
-
-
-    except Exception as error:
-
-        print("Gemini error:", error)
-
+        vitals = extract_vitals_from_text(text)
 
         return jsonify({
+            "message": "Vital extraction completed.",
+            "vitals": vitals,
+            "found_count": sum(
+                value is not None for value in vitals.values()
+            )
+        }), 200
 
-            "message": "Could not analyze the report.",
+    except Exception as e:
+        app.logger.exception("EXTRACT VITALS ERROR")
 
-            "error": str(error)
-
+        return jsonify({
+            "message": "Could not extract vitals.",
+            "error": str(e)
         }), 500
 
 
-# -----------------------------------
+# ============================================================
+# GEMINI REPORT ANALYSIS
+# ============================================================
+
+@app.route("/api/analyze-report", methods=["POST"])
+def analyze_report():
+    db = None
+    cursor = None
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        text = data.get("text", "")
+        report_id = data.get("report_id")
+
+        if not isinstance(text, str) or not text.strip():
+            return jsonify({
+                "message": "No report text provided."
+            }), 400
+
+        if not client:
+            return jsonify({
+                "message": (
+                    "GEMINI_API_KEY is missing. "
+                    "Add it to your .env file and restart Flask."
+                )
+            }), 500
+
+        prompt = f"""
+You are a health report explanation assistant.
+
+Explain this report in simple language.
+
+Rules:
+- Do not diagnose the patient.
+- Do not prescribe medicines.
+- Do not invent values or reference ranges.
+- Distinguish information printed in the report from general context.
+- Explain abnormal values only when supported by the report.
+- Encourage consultation with a qualified healthcare professional.
+
+Use these sections:
+1. Report Summary
+2. Important Values
+3. Values Outside the Given Reference Range
+4. Simple Explanation
+5. Questions to Ask a Doctor
+
+If a section has insufficient information, say so.
+
+Medical report:
+{text}
+"""
+
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt
+        )
+
+        analysis = getattr(response, "text", None)
+
+        if not analysis or not analysis.strip():
+            return jsonify({
+                "message": "Gemini returned an empty response."
+            }), 502
+
+        # Save analysis when the frontend supplies the uploaded report ID.
+        if report_id is not None:
+            try:
+                report_id = int(report_id)
+            except (ValueError, TypeError):
+                return jsonify({
+                    "message": "Invalid report_id."
+                }), 400
+
+            db = get_db_connection()
+            cursor = db.cursor()
+
+            cursor.execute(
+                """
+                UPDATE reports
+                SET ai_analysis = %s
+                WHERE id = %s
+                """,
+                (analysis, report_id)
+            )
+
+            if cursor.rowcount == 0:
+                db.rollback()
+                return jsonify({
+                    "message": "Report not found; analysis was not saved."
+                }), 404
+
+            db.commit()
+
+        return jsonify({
+            "message": "Report analysis completed.",
+            "analysis": analysis,
+            "report_id": report_id
+        }), 200
+
+    except Exception as e:
+        if db:
+            db.rollback()
+
+        app.logger.exception("GEMINI ANALYSIS ERROR")
+
+        return jsonify({
+            "message": "AI analysis failed.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
+
+
+# ============================================================
+# SAVE OR UPDATE ANALYSIS SEPARATELY
+# ============================================================
+
+@app.route(
+    "/api/reports/<int:report_id>/analysis",
+    methods=["PUT"]
+)
+def save_analysis(report_id):
+    db = None
+    cursor = None
+
+    try:
+        data = request.get_json(silent=True) or {}
+        analysis = data.get("analysis", "")
+
+        if not isinstance(analysis, str) or not analysis.strip():
+            return jsonify({
+                "message": "No analysis provided."
+            }), 400
+
+        db = get_db_connection()
+        cursor = db.cursor()
+
+        cursor.execute(
+            """
+            UPDATE reports
+            SET ai_analysis = %s
+            WHERE id = %s
+            """,
+            (analysis, report_id)
+        )
+
+        if cursor.rowcount == 0:
+            db.rollback()
+            return jsonify({
+                "message": "Report not found."
+            }), 404
+
+        db.commit()
+
+        return jsonify({
+            "message": "AI analysis saved successfully!"
+        }), 200
+
+    except Exception as e:
+        if db:
+            db.rollback()
+
+        app.logger.exception("SAVE ANALYSIS ERROR")
+
+        return jsonify({
+            "message": "Could not save AI analysis.",
+            "error": str(e)
+        }), 500
+
+    finally:
+        close_db(cursor, db)
+
+
+# ============================================================
 # RUN SERVER
-# -----------------------------------
+# ============================================================
 
 if __name__ == "__main__":
-
-    app.run(debug=True)
+    app.run(
+        host="127.0.0.1",
+        port=5000,
+        debug=True
+    )

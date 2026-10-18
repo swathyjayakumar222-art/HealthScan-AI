@@ -1,28 +1,169 @@
+
 import { useEffect, useState } from "react";
-
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-
 import "./App.css";
 
+const API = "http://127.0.0.1:5000/api";
+
+function normalizeVitals(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.vitals)) return data.vitals;
+  if (Array.isArray(data?.readings)) return data.readings;
+  return [];
+}
+
+
+function VitalLineChart({ title, data, series, unit = "" }) {
+  const width = 720;
+  const height = 250;
+  const pad = { top: 20, right: 24, bottom: 38, left: 48 };
+
+  const points = data
+    .map((item) => {
+      const values = series.map((line) => {
+        const raw = line.keys.map((key) => item?.[key]).find(
+          (value) => value !== undefined && value !== null && value !== ""
+        );
+        const value = Number(raw);
+        return Number.isFinite(value) && raw !== null && raw !== "" ? value : null;
+      });
+      return { item, values };
+    })
+    .filter((point) => point.values.some((value) => value !== null));
+
+  const allValues = points.flatMap((point) => point.values).filter((value) => value !== null);
+  const minValue = allValues.length ? Math.min(...allValues) : 0;
+  const maxValue = allValues.length ? Math.max(...allValues) : 1;
+  const spread = maxValue - minValue || Math.max(Math.abs(maxValue) * 0.1, 1);
+  const low = minValue - spread * 0.15;
+  const high = maxValue + spread * 0.15;
+
+  const x = (index) =>
+    pad.left + (points.length <= 1 ? 0 : (index / (points.length - 1)) * (width - pad.left - pad.right));
+  const y = (value) =>
+    height - pad.bottom - ((value - low) / (high - low)) * (height - pad.top - pad.bottom);
+
+  const dateLabel = (item) => {
+    const raw = item?.created_at ?? item?.timestamp ?? item?.date ?? item?.recorded_at;
+    if (!raw) return "";
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime())
+      ? String(raw).slice(0, 10)
+      : date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  };
+
+  if (!points.length) {
+    return (
+      <article className="trend-chart-card">
+        <h3>{title}</h3>
+        <p className="empty-state">
+          No numeric readings available for this chart yet.
+        </p>
+      </article>
+    );
+  }
+
+  return (
+    <article className="trend-chart-card">
+      <h3>{title}</h3>
+      <div className="trend-chart-scroll">
+        <svg
+          className="trend-chart-svg"
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label={`${title} trend chart`}
+        >
+          {[0, 1, 2, 3, 4].map((tick) => {
+            const value = low + ((high - low) * tick) / 4;
+            const yy = y(value);
+            return (
+              <g key={tick}>
+                <line x1={pad.left} y1={yy} x2={width - pad.right} y2={yy} className="trend-grid-line" />
+                <text x={pad.left - 8} y={yy + 4} textAnchor="end" className="trend-axis-label">
+                  {Number(value.toFixed(1))}
+                </text>
+              </g>
+            );
+          })}
+
+          {series.map((line, seriesIndex) => {
+            const linePoints = points
+              .map((point, index) =>
+                point.values[seriesIndex] === null
+                  ? null
+                  : `${x(index)},${y(point.values[seriesIndex])}`
+              )
+              .filter(Boolean)
+              .join(" ");
+
+            return (
+              <g key={line.label}>
+                <polyline
+                  points={linePoints}
+                  fill="none"
+                  stroke={line.color}
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {points.map((point, index) =>
+                  point.values[seriesIndex] === null ? null : (
+                    <circle
+                      key={`${line.label}-${index}`}
+                      cx={x(index)}
+                      cy={y(point.values[seriesIndex])}
+                      r="3.5"
+                      fill={line.color}
+                    >
+                      <title>{`${line.label}: ${point.values[seriesIndex]}${unit ? ` ${unit}` : ""}`}</title>
+                    </circle>
+                  )
+                )}
+              </g>
+            );
+          })}
+
+          {points.map((point, index) => {
+            const showLabel =
+              points.length <= 7 ||
+              index === 0 ||
+              index === points.length - 1 ||
+              index % Math.ceil(points.length / 6) === 0;
+            return showLabel ? (
+              <text
+                key={`date-${index}`}
+                x={x(index)}
+                y={height - 12}
+                textAnchor="middle"
+                className="trend-axis-label"
+              >
+                {dateLabel(point.item)}
+              </text>
+            ) : null;
+          })}
+        </svg>
+      </div>
+      <div className="trend-legend">
+        {series.map((line) => (
+          <span key={line.label}>
+            <i style={{ background: line.color }} />
+            {line.label}{unit ? ` (${unit})` : ""}
+          </span>
+        ))}
+      </div>
+    </article>
+  );
+}
 
 function App() {
-
-  // -----------------------------
-  // VITALS
-  // -----------------------------
-
   const [vitals, setVitals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     heart_rate: "",
     spo2: "",
     systolic_bp: "",
@@ -30,1069 +171,647 @@ function App() {
     temperature: "",
   });
 
-
-  // -----------------------------
-  // REPORT
-  // -----------------------------
-
-  const [selectedFile, setSelectedFile] = useState(null);
-
+  const [report, setReport] = useState(null);
   const [reportText, setReportText] = useState("");
-
+  const [extractedVitals, setExtractedVitals] = useState(null);
   const [analysis, setAnalysis] = useState("");
-
+  const [reportId, setReportId] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
 
+  async function fetchVitals() {
+    try {
+      setLoading(true);
 
-  // -----------------------------
-  // EXTRACTED VITALS
-  // -----------------------------
+      const response = await fetch(`${API}/vitals`);
+      if (!response.ok) {
+        throw new Error("Could not load vitals.");
+      }
 
-  const [extractedVitals, setExtractedVitals] = useState(null);
-
-  const [extractingVitals, setExtractingVitals] = useState(false);
-
-
-  // -----------------------------
-  // GET VITALS
-  // -----------------------------
-
-  const fetchVitals = () => {
-
-    fetch("http://127.0.0.1:5000/api/vitals")
-
-      .then((response) => response.json())
-
-      .then((data) => {
-
-        setVitals(data);
-
-      })
-
-      .catch((error) => {
-
-        console.error("Error loading vitals:", error);
-
-      });
-
-  };
-
+      const data = await response.json();
+      setVitals(normalizeVitals(data));
+    } catch (error) {
+      setMessage(
+        "Unable to load vitals. Make sure the backend is running."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-
     fetchVitals();
-
   }, []);
 
+  function handleChange(event) {
+    const { name, value } = event.target;
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  }
 
-  // -----------------------------
-  // FORM INPUT
-  // -----------------------------
+  async function handleSaveVitals(event) {
+    event.preventDefault();
+    setMessage("");
 
-  const handleChange = (event) => {
+    const payload = {};
 
-    setFormData({
-      ...formData,
-      [event.target.name]: event.target.value,
+    Object.entries(form).forEach(([key, value]) => {
+      if (value !== "") {
+        payload[key] = Number(value);
+      }
     });
 
-  };
-
-
-  // -----------------------------
-  // SAVE MANUAL VITALS
-  // -----------------------------
-
-  const handleSubmit = (event) => {
-
-    event.preventDefault();
-
-    fetch("http://127.0.0.1:5000/api/vitals", {
-
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-
-        heart_rate: Number(formData.heart_rate),
-
-        spo2: Number(formData.spo2),
-
-        systolic_bp: Number(formData.systolic_bp),
-
-        diastolic_bp: Number(formData.diastolic_bp),
-
-        temperature: Number(formData.temperature),
-
-      }),
-
-    })
-
-      .then((response) => response.json())
-
-      .then((data) => {
-
-        alert(data.message);
-
-        setFormData({
-          heart_rate: "",
-          spo2: "",
-          systolic_bp: "",
-          diastolic_bp: "",
-          temperature: "",
-        });
-
-        fetchVitals();
-
-      })
-
-      .catch((error) => {
-
-        console.error("Error saving vitals:", error);
-
-        alert("Could not save vitals.");
-
-      });
-
-  };
-
-
-  // -----------------------------
-  // FILE SELECT
-  // -----------------------------
-
-  const handleFileChange = (event) => {
-
-    const file = event.target.files[0];
-
-    setSelectedFile(file);
-
-    // Reset previous report information
-    setReportText("");
-
-    setExtractedVitals(null);
-
-    setAnalysis("");
-
-  };
-
-
-  // -----------------------------
-  // UPLOAD REPORT
-  // -----------------------------
-
-  const handleUpload = () => {
-
-    if (!selectedFile) {
-
-      alert("Please select a PDF first.");
-
+    if (Object.keys(payload).length === 0) {
+      setMessage("Please enter at least one vital reading.");
       return;
-
     }
 
+    try {
+      setSaving(true);
 
-    const formData = new FormData();
-
-    formData.append("file", selectedFile);
-
-
-    fetch("http://127.0.0.1:5000/api/upload-report", {
-
-      method: "POST",
-
-      body: formData,
-
-    })
-
-      .then((response) => response.json())
-
-      .then((data) => {
-
-        alert(data.message);
-
-        setReportText(data.text);
-
-      })
-
-      .catch((error) => {
-
-        console.error("Error uploading report:", error);
-
-        alert("Could not upload report.");
-
-      });
-
-  };
-
-
-  // -----------------------------
-  // EXTRACT VITALS FROM REPORT
-  // -----------------------------
-
-  const handleExtractVitals = () => {
-
-    if (!reportText) {
-
-      alert("Please upload a report first.");
-
-      return;
-
-    }
-
-
-    setExtractingVitals(true);
-
-
-    fetch("http://127.0.0.1:5000/api/extract-vitals", {
-
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-        text: reportText,
-      }),
-
-    })
-
-      .then((response) => response.json())
-
-      .then((data) => {
-
-        if (data.vitals) {
-
-          setExtractedVitals(data.vitals);
-
-        } else {
-
-          alert(
-            data.message || "Could not extract vitals."
-          );
-
-        }
-
-      })
-
-      .catch((error) => {
-
-        console.error(
-          "Error extracting vitals:",
-          error
-        );
-
-        alert("Could not extract vitals.");
-
-      })
-
-      .finally(() => {
-
-        setExtractingVitals(false);
-
-      });
-
-  };
-
-
-  // -----------------------------
-  // SAVE EXTRACTED VITALS
-  // -----------------------------
-
-  const handleSaveExtractedVitals = () => {
-
-    if (!extractedVitals) {
-
-      alert("No extracted vitals available.");
-
-      return;
-
-    }
-
-
-    if (
-
-      extractedVitals.heart_rate === null ||
-
-      extractedVitals.spo2 === null ||
-
-      extractedVitals.systolic_bp === null ||
-
-      extractedVitals.diastolic_bp === null ||
-
-      extractedVitals.temperature === null
-
-    ) {
-
-      alert(
-        "Some vital values are missing from the report. They cannot be saved as a complete vital record."
-      );
-
-      return;
-
-    }
-
-
-    fetch("http://127.0.0.1:5000/api/vitals", {
-
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify({
-
-        heart_rate: extractedVitals.heart_rate,
-
-        spo2: extractedVitals.spo2,
-
-        systolic_bp:
-          extractedVitals.systolic_bp,
-
-        diastolic_bp:
-          extractedVitals.diastolic_bp,
-
-        temperature:
-          extractedVitals.temperature,
-
-      }),
-
-    })
-
-      .then((response) => response.json())
-
-      .then((data) => {
-
-        alert(data.message);
-
-        fetchVitals();
-
-      })
-
-      .catch((error) => {
-
-        console.error(
-          "Error saving extracted vitals:",
-          error
-        );
-
-        alert(
-          "Could not save extracted vitals."
-        );
-
-      });
-
-  };
-
-
-  // -----------------------------
-  // ANALYZE REPORT WITH GEMINI
-  // -----------------------------
-
-  const handleAnalyze = () => {
-
-    if (!reportText) {
-
-      alert("Please upload a report first.");
-
-      return;
-
-    }
-
-
-    setAnalyzing(true);
-
-
-    fetch(
-      "http://127.0.0.1:5000/api/analyze-report",
-      {
-
+      const response = await fetch(`${API}/vitals`, {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json",
         },
-
-        body: JSON.stringify({
-          text: reportText,
-        }),
-
-      }
-    )
-
-      .then((response) => response.json())
-
-      .then((data) => {
-
-        if (data.analysis) {
-
-          setAnalysis(data.analysis);
-
-        } else {
-
-          alert(
-            data.message ||
-              "Could not analyze report."
-          );
-
-        }
-
-      })
-
-      .catch((error) => {
-
-        console.error(
-          "Error analyzing report:",
-          error
-        );
-
-        alert("Could not analyze report.");
-
-      })
-
-      .finally(() => {
-
-        setAnalyzing(false);
-
+        body: JSON.stringify(payload),
       });
 
-  };
+      const data = await response.json().catch(() => ({}));
 
+      if (!response.ok) {
+        throw new Error(data.error || data.message || "Could not save vitals.");
+      }
+
+      setMessage("Vitals saved successfully!");
+      setForm({
+        heart_rate: "",
+        spo2: "",
+        systolic_bp: "",
+        diastolic_bp: "",
+        temperature: "",
+      });
+
+      await fetchVitals();
+    } catch (error) {
+      setMessage(error.message || "Error saving vitals.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUploadReport(event) {
+    event.preventDefault();
+
+    if (!report) {
+      setMessage("Please select a PDF report first.");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setMessage("");
+      setReportText("");
+      setExtractedVitals(null);
+      setAnalysis("");
+      setReportId(null);
+
+      const formData = new FormData();
+      formData.append("file", report);
+
+      const response = await fetch(`${API}/upload-report`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || "Report upload failed.");
+      }
+
+      setReportId(data.report_id ?? data.id ?? null);
+      setReportText(data.text ?? data.extracted_text ?? "");
+      setMessage("Report uploaded successfully!");
+    } catch (error) {
+      setMessage(error.message || "Could not upload report.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleExtractVitals() {
+    if (!report) {
+      setMessage("Please upload a PDF report first.");
+      return;
+    }
+
+    try {
+      setExtracting(true);
+      setMessage("");
+
+      const formData = new FormData();
+      formData.append("file", report);
+
+      const response = await fetch(`${API}/extract-vitals`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          data.error || data.message || "Could not extract vitals."
+        );
+      }
+
+      const extracted = data.vitals ?? data.extracted_vitals ?? data;
+      setExtractedVitals(extracted);
+
+      if (data.report_id != null) {
+        setReportId(data.report_id);
+      }
+
+      if (data.text) {
+        setReportText(data.text);
+      }
+
+      setMessage("Vitals extracted successfully!");
+    } catch (error) {
+      setMessage(error.message || "Error extracting vitals.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function handleAnalyzeReport() {
+    const textToAnalyze = reportText.trim();
+
+    if (!textToAnalyze) {
+      setMessage(
+        "Upload a report first so there is text to analyze."
+      );
+      return;
+    }
+
+    try {
+      setAnalyzing(true);
+      setMessage("");
+      setAnalysis("");
+
+      const response = await fetch(`${API}/analyze-report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: textToAnalyze,
+          report_id: reportId,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || "Analysis failed.");
+      }
+
+      setAnalysis(
+        typeof data.analysis === "string"
+          ? data.analysis
+          : JSON.stringify(data.analysis ?? data, null, 2)
+      );
+
+      setMessage("Report analysis completed.");
+    } catch (error) {
+      setMessage(error.message || "Could not analyze the report.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  function displayValue(value, unit = "") {
+    if (value === undefined || value === null || value === "") {
+      return "Not available";
+    }
+
+    return `${value}${unit}`;
+  }
+
+  function getVitalValue(vital, ...keys) {
+    for (const key of keys) {
+      if (vital?.[key] !== undefined && vital[key] !== null) {
+        return vital[key];
+      }
+    }
+    return null;
+  }
+
+  const latest = vitals.length > 0 ? vitals[0] : null;
+
+  const vitalCards = [
+    {
+      title: "Heart Rate",
+      value: getVitalValue(latest, "heart_rate", "heartRate"),
+      unit: " bpm",
+      icon: "♥",
+    },
+    {
+      title: "Blood Oxygen",
+      value: getVitalValue(latest, "spo2", "oxygen_saturation"),
+      unit: "%",
+      icon: "◉",
+    },
+    {
+      title: "Blood Pressure",
+      value:
+        getVitalValue(latest, "systolic_bp", "systolic") != null &&
+        getVitalValue(latest, "diastolic_bp", "diastolic") != null
+          ? `${getVitalValue(latest, "systolic_bp", "systolic")}/${getVitalValue(
+              latest,
+              "diastolic_bp",
+              "diastolic"
+            )}`
+          : null,
+      unit: " mmHg",
+      icon: "＋",
+    },
+    {
+      title: "Temperature",
+      value: getVitalValue(latest, "temperature", "body_temperature"),
+      unit: " °C",
+      icon: "♨",
+    },
+  ];
 
   return (
-
     <div className="app">
-
-
-      {/* HEADER */}
-
       <header className="app-header">
+        <div>
+          <h1>HealthScan AI</h1>
+          <p>Your personal health space</p>
+        </div>
 
-        <h1>
-          ❤️ HealthScan AI
-        </h1>
-
-        <p>
-          Health Report & Vital Analysis Platform
-        </p>
-
+        <button className="refresh-button" onClick={fetchVitals}>
+          Refresh Data
+        </button>
       </header>
 
-
-
-      <main className="container">
-
-
-        {/* MANUAL VITALS */}
-
-        <section className="report-section">
-
-          <h2>
-            ❤️ Enter Health Vitals
-          </h2>
-
+      <main className="dashboard">
+        <section className="welcome-section">
+          <h2>Welcome to Your Health Dashboard</h2>
           <p>
-            Enter your health measurements
-            manually.
+            Keep track of your health information and understand your
+            medical reports in one place.
           </p>
-
-
-          <form
-            onSubmit={handleSubmit}
-            className="vitals-form"
-          >
-
-            <div className="vitals-grid">
-
-
-              <div>
-
-                <label>
-                  Heart Rate (BPM)
-                </label>
-
-                <input
-                  type="number"
-                  name="heart_rate"
-                  value={formData.heart_rate}
-                  onChange={handleChange}
-                  required
-                />
-
-              </div>
-
-
-              <div>
-
-                <label>
-                  SpO₂ (%)
-                </label>
-
-                <input
-                  type="number"
-                  name="spo2"
-                  value={formData.spo2}
-                  onChange={handleChange}
-                  required
-                />
-
-              </div>
-
-
-              <div>
-
-                <label>
-                  Systolic BP
-                </label>
-
-                <input
-                  type="number"
-                  name="systolic_bp"
-                  value={formData.systolic_bp}
-                  onChange={handleChange}
-                  required
-                />
-
-              </div>
-
-
-              <div>
-
-                <label>
-                  Diastolic BP
-                </label>
-
-                <input
-                  type="number"
-                  name="diastolic_bp"
-                  value={formData.diastolic_bp}
-                  onChange={handleChange}
-                  required
-                />
-
-              </div>
-
-
-              <div>
-
-                <label>
-                  Temperature (°C)
-                </label>
-
-                <input
-                  type="number"
-                  step="0.1"
-                  name="temperature"
-                  value={formData.temperature}
-                  onChange={handleChange}
-                  required
-                />
-
-              </div>
-
-
-            </div>
-
-
-            <button
-              type="submit"
-              className="upload-button"
-            >
-              Save Vitals
-            </button>
-
-
-          </form>
-
         </section>
 
-
-
-        {/* HEART RATE */}
-
-        <section className="report-section">
-
-          <h2>
-            ❤️ Heart Rate Trend
-          </h2>
-
-
-          {vitals.length > 0 ? (
-
-            <ResponsiveContainer
-              width="100%"
-              height={300}
-            >
-
-              <LineChart
-                data={[...vitals].reverse()}
-              >
-
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                />
-
-                <XAxis
-                  dataKey="recorded_at"
-                />
-
-                <YAxis />
-
-                <Tooltip />
-
-                <Legend />
-
-                <Line
-                  type="monotone"
-                  dataKey="heart_rate"
-                  name="Heart Rate (BPM)"
-                  stroke="#2563eb"
-                  strokeWidth={3}
-                />
-
-              </LineChart>
-
-            </ResponsiveContainer>
-
-          ) : (
-
-            <p>
-              No heart rate data available.
-            </p>
-
-          )}
-
-        </section>
-
-
-
-        {/* SPO2 */}
-
-        <section className="report-section">
-
-          <h2>
-            🫁 SpO₂ Trend
-          </h2>
-
-
-          {vitals.length > 0 ? (
-
-            <ResponsiveContainer
-              width="100%"
-              height={300}
-            >
-
-              <LineChart
-                data={[...vitals].reverse()}
-              >
-
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                />
-
-                <XAxis
-                  dataKey="recorded_at"
-                />
-
-                <YAxis />
-
-                <Tooltip />
-
-                <Legend />
-
-                <Line
-                  type="monotone"
-                  dataKey="spo2"
-                  name="SpO₂ (%)"
-                  stroke="#16a34a"
-                  strokeWidth={3}
-                />
-
-              </LineChart>
-
-            </ResponsiveContainer>
-
-          ) : (
-
-            <p>
-              No SpO₂ data available.
-            </p>
-
-          )}
-
-        </section>
-
-
-
-        {/* BLOOD PRESSURE */}
-
-        <section className="report-section">
-
-          <h2>
-            🩺 Blood Pressure Trend
-          </h2>
-
-
-          {vitals.length > 0 ? (
-
-            <ResponsiveContainer
-              width="100%"
-              height={300}
-            >
-
-              <LineChart
-                data={[...vitals].reverse()}
-              >
-
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                />
-
-                <XAxis
-                  dataKey="recorded_at"
-                />
-
-                <YAxis />
-
-                <Tooltip />
-
-                <Legend />
-
-                <Line
-                  type="monotone"
-                  dataKey="systolic_bp"
-                  name="Systolic"
-                  stroke="#dc2626"
-                  strokeWidth={3}
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="diastolic_bp"
-                  name="Diastolic"
-                  stroke="#9333ea"
-                  strokeWidth={3}
-                />
-
-              </LineChart>
-
-            </ResponsiveContainer>
-
-          ) : (
-
-            <p>
-              No blood pressure data available.
-            </p>
-
-          )}
-
-        </section>
-
-
-
-        {/* TEMPERATURE */}
-
-        <section className="report-section">
-
-          <h2>
-            🌡️ Temperature Trend
-          </h2>
-
-
-          {vitals.length > 0 ? (
-
-            <ResponsiveContainer
-              width="100%"
-              height={300}
-            >
-
-              <LineChart
-                data={[...vitals].reverse()}
-              >
-
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                />
-
-                <XAxis
-                  dataKey="recorded_at"
-                />
-
-                <YAxis />
-
-                <Tooltip />
-
-                <Legend />
-
-                <Line
-                  type="monotone"
-                  dataKey="temperature"
-                  name="Temperature (°C)"
-                  stroke="#f59e0b"
-                  strokeWidth={3}
-                />
-
-              </LineChart>
-
-            </ResponsiveContainer>
-
-          ) : (
-
-            <p>
-              No temperature data available.
-            </p>
-
-          )}
-
-        </section>
-
-
-
-        {/* MEDICAL REPORT */}
-
-        <section className="report-section">
-
-          <h2>
-            📄 Medical Report
-          </h2>
-
-
-          <p>
-            Upload a medical report to extract
-            and understand the information inside it.
-          </p>
-
-
-          <div className="upload-area">
-
-
+        {message && (
+          <div className="status-message" role="status">
+            {message}
+          </div>
+        )}
+
+        <section className="section">
+          <div className="section-heading">
             <div>
-              📁
+              <h2>Health Overview</h2>
+              <p>Your latest recorded vital readings</p>
             </div>
-
-
-            <p>
-              Select your PDF medical report
-            </p>
-
-
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={handleFileChange}
-            />
-
-
-            <br />
-
-
-            {/* UPLOAD */}
-
-            <button
-              className="upload-button"
-              onClick={handleUpload}
-              disabled={!selectedFile}
-            >
-              Upload Report
-            </button>
-
-
-            {/* EXTRACT VITALS */}
-
-            <button
-              className="upload-button"
-              onClick={handleExtractVitals}
-              disabled={
-                !reportText ||
-                extractingVitals
-              }
-            >
-
-              {extractingVitals
-                ? "Extracting Vitals..."
-                : "🔍 Extract Vitals from Report"}
-
-            </button>
-
-
-            {/* AI ANALYSIS */}
-
-            <button
-              className="upload-button"
-              onClick={handleAnalyze}
-              disabled={
-                !reportText ||
-                analyzing
-              }
-            >
-
-              {analyzing
-                ? "Analyzing Report..."
-                : "🧠 Analyze Report with AI"}
-
-            </button>
-
-
+            <span className="reading-count">
+              {vitals.length} readings
+            </span>
           </div>
 
+          {loading ? (
+            <p className="empty-state">Loading your health data...</p>
+          ) : (
+            <div className="vitals-grid">
+              {vitalCards.map((card) => (
+                <article className="vital-card" key={card.title}>
+                  <div className="vital-card-top">
+                    <span className="vital-icon">{card.icon}</span>
+                    <span className="vital-label">{card.title}</span>
+                  </div>
 
-
-          {/* EXTRACTED TEXT */}
-
-          {reportText && (
-
-            <div className="report-text">
-
-              <h3>
-                📄 Extracted Report Text
-              </h3>
-
-              <pre>
-                {reportText}
-              </pre>
-
+                  <h3>
+                    {card.value === null
+                      ? "—"
+                      : `${card.value}${card.unit}`}
+                  </h3>
+                </article>
+              ))}
             </div>
-
           )}
 
+          {!loading && vitals.length === 0 && (
+            <p className="empty-state">
+              No readings found. Add your first vital reading below.
+            </p>
+          )}
+        </section>
 
+        <section className="section">
+          <div className="section-heading">
+            <div>
+              <h2>Vitals Trends</h2>
+              <p>Changes across your saved readings</p>
+            </div>
+          </div>
 
-          {/* EXTRACTED VITALS */}
+          {vitals.length < 2 && (
+            <p className="empty-state">
+              Add at least two readings with numeric values to see a trend line.
+            </p>
+          )}
+
+          <div className="trend-chart-grid">
+            <VitalLineChart
+              title="Heart Rate"
+              data={[...vitals].reverse()}
+              series={[{ label: "Heart rate", keys: ["heart_rate", "heartRate"], color: "#e05260" }]}
+              unit="bpm"
+            />
+            <VitalLineChart
+              title="Blood Oxygen (SpO₂)"
+              data={[...vitals].reverse()}
+              series={[{ label: "SpO₂", keys: ["spo2", "oxygen_saturation"], color: "#3288c8" }]}
+              unit="%"
+            />
+            <VitalLineChart
+              title="Blood Pressure"
+              data={[...vitals].reverse()}
+              series={[
+                { label: "Systolic", keys: ["systolic_bp", "systolic"], color: "#8b5cf6" },
+                { label: "Diastolic", keys: ["diastolic_bp", "diastolic"], color: "#16a085" },
+              ]}
+              unit="mmHg"
+            />
+            <VitalLineChart
+              title="Temperature"
+              data={[...vitals].reverse()}
+              series={[{ label: "Temperature", keys: ["temperature", "body_temperature"], color: "#e39b35" }]}
+              unit="°C"
+            />
+          </div>
+        </section>
+
+        <section className="section">
+          <div className="section-heading">
+            <div>
+              <h2>Add New Vitals</h2>
+              <p>Enter your readings manually</p>
+            </div>
+          </div>
+
+          <form className="vitals-form" onSubmit={handleSaveVitals}>
+            <label>
+              Heart Rate (bpm)
+              <input
+                type="number"
+                name="heart_rate"
+                min="1"
+                max="300"
+                value={form.heart_rate}
+                onChange={handleChange}
+                placeholder="e.g. 72"
+              />
+            </label>
+
+            <label>
+              Blood Oxygen (%)
+              <input
+                type="number"
+                name="spo2"
+                min="1"
+                max="100"
+                value={form.spo2}
+                onChange={handleChange}
+                placeholder="e.g. 98"
+              />
+            </label>
+
+            <label>
+              Systolic BP (mmHg)
+              <input
+                type="number"
+                name="systolic_bp"
+                min="1"
+                max="300"
+                value={form.systolic_bp}
+                onChange={handleChange}
+                placeholder="e.g. 120"
+              />
+            </label>
+
+            <label>
+              Diastolic BP (mmHg)
+              <input
+                type="number"
+                name="diastolic_bp"
+                min="1"
+                max="200"
+                value={form.diastolic_bp}
+                onChange={handleChange}
+                placeholder="e.g. 80"
+              />
+            </label>
+
+            <label>
+              Temperature (°C)
+              <input
+                type="number"
+                name="temperature"
+                step="0.1"
+                min="25"
+                max="45"
+                value={form.temperature}
+                onChange={handleChange}
+                placeholder="e.g. 36.8"
+              />
+            </label>
+
+            <button type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Save Vitals"}
+            </button>
+          </form>
+        </section>
+
+        <section className="section">
+          <div className="section-heading">
+            <div>
+              <h2>Medical Report</h2>
+              <p>Upload a PDF to extract and analyze its contents</p>
+            </div>
+          </div>
+
+          <form className="report-form" onSubmit={handleUploadReport}>
+            <label className="file-label">
+              Select Medical Report (PDF)
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={(event) => {
+                  setReport(event.target.files?.[0] ?? null);
+                  setReportText("");
+                  setExtractedVitals(null);
+                  setAnalysis("");
+                  setReportId(null);
+                }}
+              />
+            </label>
+
+            {report && (
+              <p className="selected-file">
+                Selected file: {report.name}
+              </p>
+            )}
+
+            <button type="submit" disabled={uploading || !report}>
+              {uploading ? "Uploading..." : "Upload Report"}
+            </button>
+          </form>
+
+          <div className="report-actions">
+            <button
+              type="button"
+              onClick={handleExtractVitals}
+              disabled={extracting || !report}
+            >
+              {extracting ? "Extracting..." : "Extract Vitals"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAnalyzeReport}
+              disabled={analyzing || !reportText.trim()}
+            >
+              {analyzing ? "Analyzing..." : "Analyze Report with AI"}
+            </button>
+          </div>
 
           {extractedVitals && (
-
-            <div className="report-text">
-
-              <h3>
-                🔍 Extracted Health Values
-              </h3>
-
-
-              <p>
-
-                ❤️ Heart Rate:{" "}
-
-                {extractedVitals.heart_rate !==
-                null
-
-                  ? `${extractedVitals.heart_rate} BPM`
-
-                  : "Not found"}
-
-              </p>
-
-
-              <p>
-
-                🫁 SpO₂:{" "}
-
-                {extractedVitals.spo2 !==
-                null
-
-                  ? `${extractedVitals.spo2}%`
-
-                  : "Not found"}
-
-              </p>
-
-
-              <p>
-
-                🩺 Blood Pressure:{" "}
-
-                {extractedVitals.systolic_bp !==
-                  null &&
-                extractedVitals.diastolic_bp !==
-                  null
-
-                  ? `${extractedVitals.systolic_bp}/${extractedVitals.diastolic_bp} mmHg`
-
-                  : "Not found"}
-
-              </p>
-
-
-              <p>
-
-                🌡️ Temperature:{" "}
-
-                {extractedVitals.temperature !==
-                null
-
-                  ? `${extractedVitals.temperature}°C`
-
-                  : "Not found"}
-
-              </p>
-
-
-              <button
-                className="upload-button"
-                onClick={
-                  handleSaveExtractedVitals
-                }
-              >
-                💾 Save Extracted Vitals
-              </button>
-
-
+            <div className="result-panel">
+              <h3>Extracted Vitals</h3>
+              <pre>
+                {JSON.stringify(extractedVitals, null, 2)}
+              </pre>
             </div>
-
           )}
 
-
-
-          {/* AI ANALYSIS */}
+          {reportText && (
+            <details className="result-panel">
+              <summary>View Extracted Report Text</summary>
+              <pre>{reportText}</pre>
+            </details>
+          )}
 
           {analysis && (
-
-            <div className="report-text">
-
-              <h3>
-                🤖 AI Report Analysis
-              </h3>
-
-
-              <pre>
-                {analysis}
-              </pre>
-
-
+            <div className="result-panel">
+              <h3>AI Report Analysis</h3>
+              <p className="disclaimer">
+                This information is for general understanding and is not
+                a medical diagnosis. Consult a qualified healthcare
+                professional about medical concerns.
+              </p>
+              <pre>{analysis}</pre>
             </div>
-
           )}
-
         </section>
 
+        <section className="section">
+          <div className="section-heading">
+            <div>
+              <h2>Recent Readings</h2>
+              <p>Your saved vital readings</p>
+            </div>
+          </div>
 
+          {loading ? (
+            <p className="empty-state">Loading readings...</p>
+          ) : vitals.length === 0 ? (
+            <p className="empty-state">No readings recorded yet.</p>
+          ) : (
+            <div className="table-wrapper">
+              <table className="vitals-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Heart Rate</th>
+                    <th>SpO₂</th>
+                    <th>Blood Pressure</th>
+                    <th>Temperature</th>
+                  </tr>
+                </thead>
 
-        {/* BACKEND STATUS */}
-
-        <section className="report-section">
-
-          <h2>
-            🔗 Backend Status
-          </h2>
-
-          <p>
-            Connected to HealthScan AI backend
-          </p>
-
+                <tbody>
+                  {vitals.map((vital, index) => (
+                    <tr key={vital.id ?? vital.timestamp ?? index}>
+                      <td>
+                        {vital.created_at || vital.timestamp
+                          ? new Date(
+                              vital.created_at || vital.timestamp
+                            ).toLocaleString()
+                          : "—"}
+                      </td>
+                      <td>
+                        {displayValue(
+                          getVitalValue(vital, "heart_rate", "heartRate"),
+                          " bpm"
+                        )}
+                      </td>
+                      <td>
+                        {displayValue(
+                          getVitalValue(vital, "spo2", "oxygen_saturation"),
+                          "%"
+                        )}
+                      </td>
+                      <td>
+                        {getVitalValue(
+                          vital,
+                          "systolic_bp",
+                          "systolic"
+                        ) != null
+                          ? `${getVitalValue(
+                              vital,
+                              "systolic_bp",
+                              "systolic"
+                            )}/${getVitalValue(
+                              vital,
+                              "diastolic_bp",
+                              "diastolic"
+                            ) ?? "—"} mmHg`
+                          : "Not available"}
+                      </td>
+                      <td>
+                        {displayValue(
+                          getVitalValue(
+                            vital,
+                            "temperature",
+                            "body_temperature"
+                          ),
+                          " °C"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
-
+        <footer className="app-footer">
+          <p>HealthScan AI · Your health information in one place</p>
+        </footer>
       </main>
-
     </div>
-
   );
-
 }
 
-
 export default App;
+
