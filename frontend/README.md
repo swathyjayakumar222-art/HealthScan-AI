@@ -1,87 +1,95 @@
-# HealthScan-AI 🩺
+# 🩺 HealthScan AI — Intelligent Health Monitoring & Report Analysis
 
-An AI-powered health dashboard designed to help users track vital signs, monitor health trends, and analyze medical reports in one place.
+HealthScan AI is a full-stack healthcare application that helps users track health vitals, visualize health trends, upload medical reports, and receive AI-assisted explanations of report contents using Google Gemini.
 
-## 📌 About the Project
-
-HealthScan-AI is a web application that provides a personal health dashboard. Users can record vital readings, view health information, upload medical reports, and access report analysis through a frontend connected to a Flask backend.
+The application combines a React frontend, Flask REST API, MySQL database, and AI-powered report analysis in one platform.
 
 ## ✨ Features
 
-- **Health Dashboard:** View an overview of recorded health information.
-- **Vitals Tracking:** Add and store health readings.
-- **Vitals Trends:** Visualize changes in health readings over time.
-- **Medical Report Upload:** Upload medical reports for processing.
-- **Report Extraction and Analysis:** Extract information from supported reports and display analysis.
-- **Recent Readings:** Review previously recorded vital measurements.
-- **Frontend–Backend Integration:** Communicate with a Flask API.
+- **User Authentication** — User signup and login.
+- **Health Dashboard** — View health information from one place.
+- **Vitals Tracking** — Record heart rate, SpO₂, blood pressure, and body temperature.
+- **Health Trends** — Visualize recorded vital measurements using charts.
+- **Medical Report Upload** — Upload PDF medical reports.
+- **PDF Text Extraction** — Extract selectable text from uploaded reports.
+- **Vitals Extraction** — Identify supported vital measurements in report text.
+- **AI Report Analysis** — Generate plain-language explanations of medical report contents using Gemini.
+- **Database Integration** — Store user information, vitals, and report information in MySQL.
 
-## 🛠️ Technologies Used
+## 🖥️ Screenshots
 
-**Frontend**
-- React
-- Vite
-- JavaScript
-- HTML
-- CSS
+### Health Dashboard
+![HealthScan AI Dashboard](frontend/screenshots/dashboard.png)
 
-**Backend**
-- Python
-- Flask
-- REST API
-
-**Database and Storage**
-- MySQL, if configured in your project
-- Uploaded reports and health readings, depending on your backend implementation
-
-## 📸 Screenshots
-
-### 1. Dashboard
-
-![HealthScan-AI Dashboard](frontend/screenshots/dashboard.png)
-
-### 2. Vitals Trends
-
+### Vitals Trends
 ![Vitals Trends](frontend/screenshots/vitals-trends.png)
 
-### 3. Add Vitals
-
+### Add Vitals
 ![Add Vitals](frontend/screenshots/add-vitals.png)
 
-### 4. Medical Report Analysis
+### Medical Report
+![Medical Report](frontend/screenshots/medical-report.png)
 
-![Medical Report Analysis](frontend/screenshots/medical-report.png)
+## 🏗️ System Architecture
 
-## 📂 Project Structure
+```mermaid
+flowchart TD
+    A[React + Vite Frontend] <--> B[Flask REST API]
+    B <--> C[(MySQL Database)]
+    B <--> D[Google Gemini AI]
+    A --> E[Dashboard and Vitals]
+    A --> F[Medical Report Upload]
+    F --> B
+```
+
+## 🛠️ Tech Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | React, Vite, CSS |
+| Backend | Python, Flask |
+| API Communication | REST API, JSON |
+| Database | MySQL |
+| AI Integration | Google Gemini API |
+| PDF Processing | PyPDF |
+| Authentication | Flask endpoints, password hashing |
+| Charts | Recharts |
+
+## 📁 Project Structure
 
 ```text
 HealthScan-AI/
+├── backend/
+│   ├── app.py
+│   ├── requirements.txt
+│   ├── .env
+│   └── uploads/
 ├── frontend/
 │   ├── src/
-│   ├── public/
+│   │   ├── App.jsx
+│   │   └── App.css
 │   ├── screenshots/
 │   │   ├── dashboard.png
 │   │   ├── vitals-trends.png
 │   │   ├── add-vitals.png
 │   │   └── medical-report.png
-│   ├── package.json
-│   └── vite.config.js
-├── backend/
-│   ├── app.py
-│   └── other backend files
+│   └── package.json
+├── .gitignore
 └── README.md
 ```
 
-*Note: The structure above is illustrative. Adjust it to match your actual files.*
+*Note: This structure illustrates the main files and folders. Your actual project may contain additional files.*
 
-## ⚙️ Installation and Setup
+## ⚙️ Prerequisites
 
-### Prerequisites
+Install the following before running the application:
 
+- Python 3.10 or later
 - Node.js and npm
-- Python 3
-- pip
-- MySQL, if required by your backend configuration
+- MySQL Server
+- A Google Gemini API key
+
+## 🚀 Installation and Setup
 
 ### 1. Clone the Repository
 
@@ -92,7 +100,70 @@ cd HealthScan-AI
 
 Replace `YOUR_GITHUB_REPOSITORY_URL` with your actual GitHub repository URL.
 
-### 2. Set Up the Frontend
+### 2. Set Up the Backend
+
+Open a terminal in the project root:
+
+```bash
+cd backend
+python -m venv venv
+```
+
+Activate the virtual environment.
+
+**Windows PowerShell:**
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+Install the Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Configure Environment Variables
+
+Create a `.env` file inside the `backend` folder:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=your_supported_gemini_model
+MYSQL_PASSWORD=your_mysql_password
+```
+
+Replace the placeholder values with your own configuration. Use a Gemini model supported by your API key.
+
+**Never upload your actual `.env` file or API key to GitHub.**
+
+### 4. Configure MySQL
+
+Start MySQL Server and create the database:
+
+```sql
+CREATE DATABASE healthscan;
+```
+
+Ensure the required tables (`users`, `vitals`, and `reports`) exist with the columns expected by `backend/app.py`. Configure your MySQL username and password in the backend settings.
+
+### 5. Start the Backend
+
+From the `backend` folder, activate the virtual environment if needed and run:
+
+```bash
+python app.py
+```
+
+The Flask backend runs at:
+
+```text
+http://127.0.0.1:5000
+```
+
+### 6. Start the Frontend
+
+Open a second terminal from the project root:
 
 ```bash
 cd frontend
@@ -100,4 +171,52 @@ npm install
 npm run dev
 ```
 
-Open the local URL shown in your terminal, usually
+Open the local URL printed by Vite, usually:
+
+```text
+http://localhost:5173
+```
+
+Keep both terminals running while using the application.
+
+## 🔌 Main API Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/health` | Check API health |
+| POST | `/api/signup` | Register a user |
+| POST | `/api/login` | Log in a user |
+| GET | `/api/vitals` | Retrieve saved vitals |
+| POST | `/api/vitals` | Save vital measurements |
+| GET | `/api/reports` | Retrieve report records |
+| POST | `/api/upload-report` | Upload and process a PDF |
+| POST | `/api/extract-vitals` | Extract vitals from report text |
+| POST | `/api/analyze-report` | Generate an AI-assisted report explanation |
+
+## 🔐 Security and Privacy
+
+- Store API keys and database credentials in environment variables.
+- Exclude `.env`, virtual environments, `node_modules`, and private uploads from version control.
+- Do not commit real patient reports or personally identifiable medical information.
+- Use appropriate authentication, access controls, and secure deployment settings before exposing the application publicly.
+- The development Flask server is intended for local development, not production deployment.
+
+## ⚠️ Medical Disclaimer
+
+HealthScan AI provides health tracking and AI-assisted explanations for informational purposes only. AI-generated content may be incomplete or inaccurate and must not be treated as a diagnosis, treatment recommendation, or substitute for advice from a qualified healthcare professional. Always consult a healthcare professional for medical decisions.
+
+## 🔮 Future Enhancements
+
+- OCR support for scanned PDF reports.
+- More comprehensive health trend analysis.
+- Improved input validation and automated tests.
+- Production deployment with secure authentication.
+- Downloadable health summaries and reports.
+
+## 👩‍💻 Author
+
+Developed as a full-stack healthcare technology project using React, Flask, MySQL, and Google Gemini AI.
+
+---
+
+**If you find this project useful, consider giving the repository a ⭐ on GitHub.**
