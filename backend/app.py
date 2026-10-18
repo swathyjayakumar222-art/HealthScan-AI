@@ -1,4 +1,3 @@
-
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -41,12 +40,25 @@ app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
 # ============================================================
 
 def get_db_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password=MYSQL_PASSWORD or "",
-        database="healthscan"
-    )
+    """Connect to local MySQL during development or hosted MySQL on Render."""
+    connection_options = {
+        "host": os.getenv("MYSQL_HOST", "localhost"),
+        "port": int(os.getenv("MYSQL_PORT", "3306")),
+        "user": os.getenv("MYSQL_USER", "root"),
+        "password": os.getenv("MYSQL_PASSWORD", ""),
+        "database": os.getenv("MYSQL_DATABASE", "healthscan"),
+        "connection_timeout": 20,
+    }
+
+    # For Aiven, set MYSQL_SSL_CA to the path of the downloaded CA certificate
+    # (for example, /etc/secrets/ca.pem in Render Secret Files).
+    ssl_ca = os.getenv("MYSQL_SSL_CA")
+    if ssl_ca:
+        connection_options["ssl_ca"] = ssl_ca
+        connection_options["ssl_verify_cert"] = True
+        connection_options["ssl_verify_identity"] = True
+
+    return mysql.connector.connect(**connection_options)
 
 
 # ============================================================
