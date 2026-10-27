@@ -459,23 +459,50 @@ def upload_report():
                 "text": ""
             }), 422
 
-        db = get_db_connection()
-        cursor = db.cursor()
-
-        cursor.execute(
-            """
-            INSERT INTO reports (filename, report_text)
-            VALUES (%s, %s)
-            """,
-            (filename, report_text)
+        # Persist the report when the database is available. If the managed
+        # database is temporarily unavailable, still return extracted text so
+        # the user can extract vitals and request AI analysis; be explicit that
+        # the report was not saved.
+        report_id = None
+        database_saved = False
+        response_message = (
+            "Report text extracted. You can now extract vitals or analyze it."
         )
 
-        db.commit()
-        report_id = cursor.lastrowid
+        try:
+            db = get_db_connection()
+            cursor = db.cursor()
+            cursor.execute(
+                """
+                INSERT INTO reports (filename, report_text)
+                VALUES (%s, %s)
+                """,
+                (filename, report_text)
+            )
+            db.commit()
+            report_id = cursor.lastrowid
+            database_saved = True
+            response_message = "Report uploaded and saved successfully!"
+        except Exception:
+            if db:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+            app.logger.exception(
+                "REPORT TEXT EXTRACTED BUT DATABASE SAVE FAILED"
+            )
+            response_message = (
+                "Report text was extracted, but the database is unavailable, "
+                "so the report was not saved. You can still extract vitals "
+                "and analyze this report; saving and history require the "
+                "database connection to be restored."
+            )
 
         return jsonify({
-            "message": "Report uploaded successfully!",
+            "message": response_message,
             "report_id": report_id,
+            "database_saved": database_saved,
             "filename": filename,
             "text": report_text
         }), 201
