@@ -244,7 +244,7 @@ function App() {
 
   const extractedPressure =
     extractedVitals && (extractedVitals.systolic_bp != null || extractedVitals.diastolic_bp != null)
-      ? \`\${extractedVitals.systolic_bp ?? "—"}/\${extractedVitals.diastolic_bp ?? "—"}\`
+      ? `${extractedVitals.systolic_bp ?? "—"}/${extractedVitals.diastolic_bp ?? "—"}`
       : null;
   const extractedItems = extractedVitals
     ? [
@@ -273,7 +273,7 @@ function App() {
         diastolic_bp: extractedVitals.diastolic_bp ?? null,
         temperature: extractedVitals.temperature ?? null,
       };
-      const response = await fetch(\`\${API}/vitals\`, {
+      const response = await fetch(`${API}/vitals`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
