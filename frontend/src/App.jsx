@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000").replace(/\/+$/, "");
+const DEFAULT_API_BASE = import.meta.env.PROD ? "https://healthscan-ai-xabx.onrender.com" : "http://127.0.0.1:5000";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE).replace(/\/+$/, "");
 const API = API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`;
 
 async function readApiResponse(response) {
