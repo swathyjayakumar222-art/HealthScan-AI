@@ -22,6 +22,42 @@ function normalizeVitals(data) {
   return [];
 }
 
+const ANALYSIS_HEADINGS = [
+  "Report Summary",
+  "Important Values",
+  "Values Outside the Given Reference Range",
+  "Simple Explanation",
+  "Questions to Ask a Doctor",
+];
+
+function splitAnalysisSections(text) {
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  const sections = [];
+  let current = { heading: "AI explanation", body: [] };
+
+  const findHeading = (line) => {
+    const cleaned = line.trim().replace(/^#{1,6}\s*/, "").replace(/\*\*/g, "").trim();
+    const withoutNumber = cleaned.replace(/^\d+[.)]\s*/, "").replace(/:$/, "").trim();
+    return ANALYSIS_HEADINGS.find((heading) => heading.toLowerCase() === withoutNumber.toLowerCase());
+  };
+
+  for (const line of lines) {
+    const heading = findHeading(line);
+    if (heading) {
+      if (current.body.some((item) => item.trim())) sections.push(current);
+      current = { heading, body: [] };
+    } else {
+      current.body.push(line.replace(/\*\*/g, ""));
+    }
+  }
+
+  if (current.body.some((item) => item.trim()) || sections.length === 0) sections.push(current);
+  return sections.map((section) => ({
+    heading: section.heading,
+    body: section.body.join("\n").trim(),
+  })).filter((section) => section.body);
+}
+
 // Clearly fictional sample values used only to preview the charts when no
 // saved readings are available. These are never written to the database.
 const DEMO_CHART_DATA = [
@@ -200,10 +236,57 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [savingExtracted, setSavingExtracted] = useState(false);
 
   // Keep sample chart values separate from real saved vitals.
   const isDemoChart = vitals.length === 0;
   const chartData = isDemoChart ? DEMO_CHART_DATA : vitals;
+
+  const extractedPressure =
+    extractedVitals && (extractedVitals.systolic_bp != null || extractedVitals.diastolic_bp != null)
+      ? `${extractedVitals.systolic_bp ?? "—"}/${extractedVitals.diastolic_bp ?? "—"}`
+      : null;
+  const extractedItems = extractedVitals
+    ? [
+        { label: "Heart rate", value: extractedVitals.heart_rate, unit: "bpm" },
+        { label: "Blood oxygen", value: extractedVitals.spo2, unit: "%" },
+        { label: "Blood pressure", value: extractedPressure, unit: extractedPressure ? "mmHg" : "" },
+        { label: "Temperature", value: extractedVitals.temperature, unit: "°C" },
+      ]
+    : [];
+  const extractedCount = extractedItems.filter(
+    (item) => item.value !== null && item.value !== undefined && item.value !== ""
+  ).length;
+
+  async function handleSaveExtractedVitals() {
+    if (!extractedVitals || extractedCount === 0) {
+      setMessage("There are no detected measurements to save.");
+      return;
+    }
+
+    try {
+      setSavingExtracted(true);
+      const payload = {
+        heart_rate: extractedVitals.heart_rate ?? null,
+        spo2: extractedVitals.spo2 ?? null,
+        systolic_bp: extractedVitals.systolic_bp ?? null,
+        diastolic_bp: extractedVitals.diastolic_bp ?? null,
+        temperature: extractedVitals.temperature ?? null,
+      };
+      const response = await fetch(`${API}/vitals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      await readApiResponse(response);
+      setMessage("Extracted measurements saved to your real vital history.");
+      await fetchVitals();
+    } catch (error) {
+      setMessage(error.message || "Could not save extracted measurements.");
+    } finally {
+      setSavingExtracted(false);
+    }
+  }
 
   async function fetchVitals() {
     try {
@@ -349,7 +432,14 @@ function App() {
         setReportText(data.text);
       }
 
-      setMessage("Vitals extracted successfully!");
+      const foundCount = Number.isFinite(data.found_count)
+        ? data.found_count
+        : Object.values(extracted).filter((value) => value !== null && value !== undefined && value !== "").length;
+      setMessage(
+        foundCount > 0
+          ? `Extraction complete: ${foundCount} measurement group(s) found. Review the structured results below.`
+          : "No supported vital values were detected. Check the PDF text below; scanned image PDFs may require OCR."
+      );
     } catch (error) {
       setMessage(error.message || "Error extracting vitals.");
     } finally {
@@ -391,7 +481,7 @@ function App() {
           : JSON.stringify(data.analysis ?? data, null, 2)
       );
 
-      setMessage("Report analysis completed.");
+      setMessage("AI explanation generated separately from the extracted measurements.");
     } catch (error) {
       setMessage(error.message || "Could not analyze the report.");
     } finally {
@@ -456,23 +546,38 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <div>
-          <h1>HealthScan AI</h1>
-          <p>Your personal health space</p>
+        <div className="brand-lockup">
+          <div className="brand-symbol" aria-hidden="true">✚</div>
+          <div className="brand-copy">
+            <p className="brand-kicker">PERSONAL HEALTH INTELLIGENCE</p>
+            <h1>HealthScan <span>AI</span></h1>
+            <p className="brand-subtitle">Your health information, made clearer.</p>
+          </div>
         </div>
-
-        <button className="refresh-button" onClick={fetchVitals}>
-          Refresh Data
-        </button>
+        <div className="header-actions">
+          <span className="dashboard-status"><i aria-hidden="true" /> Health dashboard</span>
+          <button className="refresh-button" onClick={fetchVitals}>
+            <span aria-hidden="true">↻</span> Refresh data
+          </button>
+        </div>
       </header>
 
       <main className="dashboard">
         <section className="welcome-section">
-          <h2>Welcome to Your Health Dashboard</h2>
-          <p>
-            Keep track of your health information and understand your
-            medical reports in one place.
-          </p>
+          <div className="welcome-copy">
+            <p className="section-eyebrow">YOUR HEALTH, AT A GLANCE</p>
+            <h2>A clearer picture of your health.</h2>
+            <p>
+              Track vital measurements, explore trends, and turn medical-report
+              details into explanations that are easier to understand.
+            </p>
+          </div>
+          <div className="welcome-illustration" aria-hidden="true">
+            <span className="pulse-orbit orbit-one" />
+            <span className="pulse-orbit orbit-two" />
+            <span className="pulse-cross">✚</span>
+            <span className="pulse-line">⌁</span>
+          </div>
         </section>
 
         {message && (
@@ -657,8 +762,8 @@ function App() {
         <section className="section">
           <div className="section-heading">
             <div>
-              <h2>Medical Report</h2>
-              <p>Upload a PDF to extract and analyze its contents</p>
+              <h2>Medical report lab</h2>
+              <p>Two separate outputs: structured vital extraction and an AI-generated explanation</p>
             </div>
           </div>
 
@@ -684,8 +789,8 @@ function App() {
               </p>
             )}
 
-            <button type="submit" disabled={uploading || !report}>
-              {uploading ? "Uploading..." : "Upload Report"}
+            <button className="primary-button" type="submit" disabled={uploading || !report}>
+              {uploading ? "Reading PDF…" : "1. Upload & read PDF"}
             </button>
           </form>
 
@@ -693,9 +798,9 @@ function App() {
             <button
               type="button"
               onClick={handleExtractVitals}
-              disabled={extracting || !report}
+              disabled={extracting || !reportText.trim()}
             >
-              {extracting ? "Extracting..." : "Extract Vitals"}
+              {extracting ? "Detecting measurements…" : "2. Extract vital measurements"}
             </button>
 
             <button
@@ -703,35 +808,82 @@ function App() {
               onClick={handleAnalyzeReport}
               disabled={analyzing || !reportText.trim()}
             >
-              {analyzing ? "Analyzing..." : "Analyze Report with AI"}
+              {analyzing ? "Generating explanation…" : "3. Explain report with AI"}
             </button>
           </div>
 
           {extractedVitals && (
-            <div className="result-panel">
-              <h3>Extracted Vitals</h3>
-              <pre>
-                {JSON.stringify(extractedVitals, null, 2)}
-              </pre>
+            <div className="result-panel extraction-panel">
+              <div className="result-heading">
+                <div className="result-icon extraction-icon" aria-hidden="true">⌁</div>
+                <div>
+                  <p className="result-kicker">STRUCTURED DATA</p>
+                  <h3>Extracted measurements</h3>
+                  <p className="result-description">Values detected directly from the text of your PDF. This is data extraction, not an AI interpretation.</p>
+                </div>
+                <span className="result-count">{extractedCount} of 4 found</span>
+              </div>
+
+              {extractedCount > 0 ? (
+                <div className="extracted-vitals-grid">
+                  {extractedItems.map((item) => (
+                    <article className={item.value === null || item.value === undefined || item.value === "" ? "extracted-vital missing" : "extracted-vital"} key={item.label}>
+                      <span className="extracted-vital-label">{item.label}</span>
+                      <strong>
+                        {item.value === null || item.value === undefined || item.value === ""
+                          ? "Not found"
+                          : item.value}
+                        {item.value !== null && item.value !== undefined && item.value !== "" && item.unit ? <small>{item.unit}</small> : null}
+                      </strong>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="no-extraction-state">
+                  <strong>No supported vital values were found.</strong>
+                  <p>Check the original PDF text below. If the PDF is a scanned image rather than selectable text, OCR may be required.</p>
+                </div>
+              )}
+
+              {extractedCount > 0 && (
+                <button className="secondary-button save-extracted-button" type="button" onClick={handleSaveExtractedVitals} disabled={savingExtracted}>
+                  {savingExtracted ? "Saving measurements…" : "Save measurements to vital history"}
+                </button>
+              )}
             </div>
           )}
 
           {reportText && (
-            <details className="result-panel">
-              <summary>View Extracted Report Text</summary>
+            <details className="result-panel report-text-panel">
+              <summary>
+                <span>Original text extracted from PDF</span>
+                <small>Source text · reference only</small>
+              </summary>
               <pre>{reportText}</pre>
             </details>
           )}
 
           {analysis && (
-            <div className="result-panel">
-              <h3>AI Report Analysis</h3>
+            <div className="result-panel ai-analysis-panel">
+              <div className="result-heading">
+                <div className="result-icon analysis-icon" aria-hidden="true">✧</div>
+                <div>
+                  <p className="result-kicker">AI-POWERED EXPLANATION</p>
+                  <h3>Understanding your report</h3>
+                  <p className="result-description">A contextual explanation generated by AI. It is different from the structured measurements above and is not a diagnosis.</p>
+                </div>
+              </div>
+              <div className="analysis-sections">
+                {splitAnalysisSections(analysis).map((section, index) => (
+                  <article className="analysis-section-card" key={section.heading || index}>
+                    <h4>{section.heading}</h4>
+                    <p>{section.body}</p>
+                  </article>
+                ))}
+              </div>
               <p className="disclaimer">
-                This information is for general understanding and is not
-                a medical diagnosis. Consult a qualified healthcare
-                professional about medical concerns.
+                This explanation is for general understanding only. It may contain errors and does not replace advice from a qualified healthcare professional. Seek professional care for medical concerns.
               </p>
-              <pre>{analysis}</pre>
             </div>
           )}
         </section>
