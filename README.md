@@ -35,25 +35,25 @@ HealthScan AI brings these workflows into one application. It is an informationa
 The repository includes screenshots of the dashboard, vital-trend charts, manual data entry, and medical-report workflow.
 
 <p align="center">
-  <img src="frontend/screenschots/dashboard.png" alt="HealthScan AI dashboard" width="88%" />
+  <img src="frontend/screenshots/dashboard.png" alt="HealthScan AI dashboard" width="88%" />
   <br />
   <em>Health dashboard overview</em>
 </p>
 
 <p align="center">
-  <img src="frontend/screenschots/vitals-trends.png" alt="HealthScan AI vital trend charts" width="88%" />
+  <img src="frontend/screenshots/vitals-trends.png" alt="HealthScan AI vital trend charts" width="88%" />
   <br />
   <em>Heart rate, SpO₂, blood pressure, and temperature trends</em>
 </p>
 
 <p align="center">
-  <img src="frontend/screenschots/medical-report.png" alt="HealthScan AI medical-report workflow" width="88%" />
+  <img src="frontend/screenshots/medical-report.png" alt="HealthScan AI medical-report workflow" width="88%" />
   <br />
   <em>Medical report upload and recent readings</em>
 </p>
 
 <p align="center">
-  <img src="frontend/screenschots/add-vitals.png" alt="HealthScan AI manual vital entry" width="88%" />
+  <img src="frontend/screenshots/add-vitals.png" alt="HealthScan AI manual vital entry" width="88%" />
   <br />
   <em>Manual vital measurement entry</em>
 </p>
