@@ -798,7 +798,7 @@ function App() {
             <button
               type="button"
               onClick={handleExtractVitals}
-              disabled={extracting || !report}
+              disabled={extracting || !reportText.trim()}
             >
               {extracting ? "Detecting measurements…" : "2. Extract vital measurements"}
             </button>
