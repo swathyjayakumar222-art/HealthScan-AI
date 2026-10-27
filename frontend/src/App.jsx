@@ -237,6 +237,7 @@ function App() {
   const [extracting, setExtracting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [savingExtracted, setSavingExtracted] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
 
   // Keep sample chart values separate from real saved vitals.
   const isDemoChart = vitals.length === 0;
@@ -375,6 +376,7 @@ function App() {
       setReportText("");
       setExtractedVitals(null);
       setAnalysis("");
+      setAnalysisError("");
       setReportId(null);
 
       const formData = new FormData();
@@ -451,22 +453,23 @@ function App() {
     const textToAnalyze = reportText.trim();
 
     if (!textToAnalyze) {
-      setMessage(
-        "Upload a report first so there is text to analyze."
-      );
+      setAnalysisError("Upload and read a text-based PDF before requesting an AI explanation.");
+      setMessage("The report does not contain extracted text yet.");
       return;
     }
 
     try {
       setAnalyzing(true);
-      setMessage("");
       setAnalysis("");
+      setAnalysisError("");
+      setMessage("Sending report text to the AI service. This may take a little while.");
 
       const response = await fetch(`${API}/analyze-report`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        signal: AbortSignal.timeout(90000),
         body: JSON.stringify({
           text: textToAnalyze,
           report_id: reportId,
@@ -474,16 +477,22 @@ function App() {
       });
 
       const data = await readApiResponse(response);
+      const result = typeof data.analysis === "string"
+        ? data.analysis.trim()
+        : JSON.stringify(data.analysis ?? "", null, 2);
 
-      setAnalysis(
-        typeof data.analysis === "string"
-          ? data.analysis
-          : JSON.stringify(data.analysis ?? data, null, 2)
-      );
+      if (!result) {
+        throw new Error(data.message || "The AI service returned an empty explanation.");
+      }
 
-      setMessage("AI explanation generated separately from the extracted measurements.");
+      setAnalysis(result);
+      setMessage(data.message || "AI explanation generated successfully.");
     } catch (error) {
-      setMessage(error.message || "Could not analyze the report.");
+      const detail = error?.name === "TimeoutError"
+        ? "The AI request took longer than 90 seconds. Check the Render logs and try again."
+        : (error?.message || "Could not generate the AI explanation.");
+      setAnalysisError(detail);
+      setMessage("AI explanation could not be generated.");
     } finally {
       setAnalyzing(false);
     }
@@ -778,6 +787,7 @@ function App() {
                   setReportText("");
                   setExtractedVitals(null);
                   setAnalysis("");
+                  setAnalysisError("");
                   setReportId(null);
                 }}
               />
@@ -811,6 +821,32 @@ function App() {
               {analyzing ? "Generating explanation…" : "3. Explain report with AI"}
             </button>
           </div>
+
+          {!reportText.trim() && (
+            <p className="report-action-hint">
+              Upload & read a PDF first. AI explanation works from selectable PDF text; scanned image PDFs need OCR.
+            </p>
+          )}
+
+          {analysisError && (
+            <div className="analysis-error-panel" role="alert">
+              <strong>AI analysis failed</strong>
+              <p>{analysisError}</p>
+              {analysisError.includes("GEMINI_API_KEY") || analysisError.includes("AI analysis is not configured") ? (
+                <p>In Render, open your backend service → Environment, add a valid GEMINI_API_KEY, save, and redeploy. Never paste the key into the website or this chat.</p>
+              ) : null}
+            </div>
+          )}
+
+          {analyzing && (
+            <div className="analysis-progress-panel" role="status" aria-live="polite">
+              <span className="analysis-spinner" aria-hidden="true" />
+              <div>
+                <strong>AI is reading your report</strong>
+                <p>Generating a plain-language explanation from the extracted PDF text…</p>
+              </div>
+            </div>
+          )}
 
           {extractedVitals && (
             <div className="result-panel extraction-panel">

@@ -1004,3 +1004,80 @@
     gap: 4px;
   }
 }
+
+
+.report-action-hint {
+  margin: -6px 0 16px;
+  color: #6b7e90;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.analysis-error-panel {
+  margin: 14px 0 18px;
+  padding: 16px 18px;
+  color: #7f2934;
+  background: #fff2f2;
+  border: 1px solid #f3c9cd;
+  border-left: 4px solid #d74b5a;
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.analysis-error-panel strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #a52d3b;
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
+}
+
+.analysis-error-panel p {
+  margin-top: 5px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.analysis-progress-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 14px 0 18px;
+  padding: 18px;
+  color: #235568;
+  background: #eef9fa;
+  border: 1px solid #d2ecef;
+  border-radius: 14px;
+  font-size: 13px;
+}
+
+.analysis-progress-panel strong {
+  display: block;
+  margin-bottom: 3px;
+  color: #175369;
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
+}
+
+.analysis-progress-panel p {
+  color: #597889;
+  line-height: 1.65;
+}
+
+.analysis-spinner {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  border: 3px solid #bde4e6;
+  border-top-color: #087f8c;
+  border-radius: 50%;
+  animation: healthscan-spin 0.85s linear infinite;
+}
+
+@keyframes healthscan-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analysis-spinner { animation: none; }
+}
