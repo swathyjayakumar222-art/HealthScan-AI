@@ -754,10 +754,12 @@ def analyze_report():
         if not client:
             return jsonify({
                 "message": (
-                    "GEMINI_API_KEY is missing. "
-                    "Add it to your .env file and restart Flask."
-                )
-            }), 500
+                    "AI analysis is not configured on the server. Add a valid "
+                    "GEMINI_API_KEY in Render → your backend service → Environment, "
+                    "then redeploy the backend. The extracted PDF text remains available."
+                ),
+                "code": "MISSING_GEMINI_API_KEY"
+            }), 503
 
         prompt = f"""
 You are a careful medical-report explanation assistant. Your job is different
@@ -809,51 +811,73 @@ Medical report text:
                 "message": "Gemini returned an empty response."
             }), 502
 
-        # Save analysis when the frontend supplies the uploaded report ID.
+        # The AI response should still be returned if persistence fails. The
+        # UI can show the explanation immediately, with a clear warning that
+        # it could not be stored in report history.
+        database_saved = False
+        persistence_warning = None
+
         if report_id is not None:
             try:
                 report_id = int(report_id)
-            except (ValueError, TypeError):
-                return jsonify({
-                    "message": "Invalid report_id."
-                }), 400
+                db = get_db_connection()
+                cursor = db.cursor()
+                cursor.execute(
+                    """
+                    UPDATE reports
+                    SET ai_analysis = %s
+                    WHERE id = %s
+                    """,
+                    (analysis, report_id)
+                )
 
-            db = get_db_connection()
-            cursor = db.cursor()
-
-            cursor.execute(
-                """
-                UPDATE reports
-                SET ai_analysis = %s
-                WHERE id = %s
-                """,
-                (analysis, report_id)
-            )
-
-            if cursor.rowcount == 0:
-                db.rollback()
-                return jsonify({
-                    "message": "Report not found; analysis was not saved."
-                }), 404
-
-            db.commit()
+                if cursor.rowcount == 0:
+                    db.rollback()
+                    persistence_warning = (
+                        "The AI explanation was generated, but the uploaded "
+                        "report was not found in history, so the explanation was not saved."
+                    )
+                else:
+                    db.commit()
+                    database_saved = True
+            except Exception:
+                if db:
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
+                app.logger.exception(
+                    "AI EXPLANATION GENERATED BUT COULD NOT BE SAVED TO REPORT HISTORY"
+                )
+                persistence_warning = (
+                    "The AI explanation was generated, but it could not be saved "
+                    "to report history. You can still read the result below."
+                )
+            finally:
+                close_db(cursor, db)
+                cursor = None
+                db = None
 
         return jsonify({
-            "message": "Report analysis completed.",
+            "message": persistence_warning or "Report analysis completed.",
             "analysis": analysis,
-            "report_id": report_id
+            "report_id": report_id,
+            "database_saved": database_saved,
+            "warning": persistence_warning
         }), 200
 
     except Exception as e:
-        if db:
-            db.rollback()
-
         app.logger.exception("GEMINI ANALYSIS ERROR")
-
+        error_text = str(e)
+        app.logger.error("AI provider failure details: %s", error_text)
         return jsonify({
-            "message": "AI analysis failed.",
-            "error": str(e)
-        }), 500
+            "message": (
+                "The AI provider could not generate an explanation. Check the "
+                "GEMINI_API_KEY, configured model, API quota, and Render logs."
+            ),
+            "error": error_text,
+            "code": "AI_PROVIDER_ERROR"
+        }), 502
 
     finally:
         close_db(cursor, db)
