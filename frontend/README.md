@@ -19,16 +19,16 @@ The application combines a React frontend, Flask REST API, MySQL database, and A
 ## 🖥️ Screenshots
 
 ### Health Dashboard
-![HealthScan AI Dashboard](frontend/screenshots/dashboard.png)
+![HealthScan AI Dashboard](screenshots/dashboard.png)
 
 ### Vitals Trends
-![Vitals Trends](frontend/screenshots/vitals-trends.png)
+![Vitals Trends](screenshots/vitals-trends.png)
 
 ### Add Vitals
-![Add Vitals](frontend/screenshots/add-vitals.png)
+![Add Vitals](screenshots/add-vitals.png)
 
 ### Medical Report
-![Medical Report](frontend/screenshots/medical-report.png)
+![Medical Report](screenshots/medical-report.png)
 
 ## 🏗️ System Architecture
 
