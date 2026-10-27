@@ -1,3 +1,19 @@
+.demo-chart-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 14px 0 18px;
+  padding: 12px 16px;
+  border: 1px solid var(--accent-border, rgba(192, 132, 252, 0.5));
+  border-radius: 12px;
+  background: var(--accent-bg, rgba(192, 132, 252, 0.15));
+  color: var(--text, #9ca3af);
+  text-align: left;
+  font-size: 14px;
+}
+.demo-chart-notice strong {
+  color: var(--text-h, #f3f4f6);
+}
 /* Vitals trend charts */
 .trend-chart-grid {
   display: grid;
@@ -10,12 +26,12 @@
   padding: 18px;
   border: 1px solid rgba(130, 145, 170, 0.24);
   border-radius: 16px;
-  background: var(--card-bg, #fff);
+  background: var(--bg, #16171d);
   box-shadow: 0 5px 18px rgba(20, 35, 60, 0.06);
 }
 .trend-chart-card h3 {
   margin: 0 0 12px;
-  color: var(--text-color, #263247);
+  color: var(--text-h, #f3f4f6);
 }
 .trend-chart-scroll {
   width: 100%;
@@ -29,14 +45,14 @@
   height: 250px;
   min-height: 250px;
   overflow: visible;
-  background: #ffffff;
+  background: transparent;
 }
 .trend-grid-line {
-  stroke: #d5deea;
+  stroke: var(--border, #2e303a);
   stroke-width: 1.2;
 }
 .trend-axis-label {
-  fill: #65748b;
+  fill: var(--text, #9ca3af);
   font-size: 11px;
 }
 .trend-legend {
@@ -44,7 +60,7 @@
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 8px;
-  color: var(--text-color, #263247);
+  color: var(--text, #9ca3af);
   font-size: 12px;
 }
 .trend-legend span {
