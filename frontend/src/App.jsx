@@ -544,20 +544,20 @@ function App() {
 
           <div className="trend-chart-grid">
             <VitalLineChart
-              title="Heart Rate"
-              data={[...vitals].reverse()}
+              title={isDemoChart ? "Demo preview · Heart Rate" : "Heart Rate"}
+              data={chartData}
               series={[{ label: "Heart rate", keys: ["heart_rate", "heartRate"], color: "#e05260" }]}
               unit="bpm"
             />
             <VitalLineChart
-              title="Blood Oxygen (SpO₂)"
-              data={[...vitals].reverse()}
+              title={isDemoChart ? "Demo preview · Blood Oxygen (SpO₂)" : "Blood Oxygen (SpO₂)"}
+              data={chartData}
               series={[{ label: "SpO₂", keys: ["spo2", "oxygen_saturation"], color: "#3288c8" }]}
               unit="%"
             />
             <VitalLineChart
-              title="Blood Pressure"
-              data={[...vitals].reverse()}
+              title={isDemoChart ? "Demo preview · Blood Pressure" : "Blood Pressure"}
+              data={chartData}
               series={[
                 { label: "Systolic", keys: ["systolic_bp", "systolic"], color: "#8b5cf6" },
                 { label: "Diastolic", keys: ["diastolic_bp", "diastolic"], color: "#16a085" },
@@ -565,8 +565,8 @@ function App() {
               unit="mmHg"
             />
             <VitalLineChart
-              title="Temperature"
-              data={[...vitals].reverse()}
+              title={isDemoChart ? "Demo preview · Temperature" : "Temperature"}
+              data={chartData}
               series={[{ label: "Temperature", keys: ["temperature", "body_temperature"], color: "#e39b35" }]}
               unit="°C"
             />
