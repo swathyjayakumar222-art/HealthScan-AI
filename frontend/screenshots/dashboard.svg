@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1040" viewBox="0 0 1440 1040" role="img" aria-labelledby="title desc">
+<title id="title">HealthScan AI redesigned dashboard preview</title><desc id="desc">A polished health dashboard showing empty real-reading cards and clearly labelled illustrative chart previews.</desc>
+<defs>
+ <linearGradient id="header" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#12283b"/><stop offset=".58" stop-color="#173c50"/><stop offset="1" stop-color="#087b81"/></linearGradient>
+ <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".78" stop-color="#f5fbfd"/><stop offset="1" stop-color="#e7f7f5"/></linearGradient>
+ <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#16324c" flood-opacity=".06"/></filter>
+</defs>
+<rect width="1440" height="1040" fill="#f3f7fb"/>
+<rect width="1440" height="158" fill="url(#header)"/>
+<circle cx="1260" cy="-45" r="220" fill="none" stroke="#fff" stroke-opacity=".11" stroke-width="1.5"/><circle cx="1324" cy="145" r="142" fill="none" stroke="#fff" stroke-opacity=".11" stroke-width="1.5"/>
+<rect x="72" y="45" width="58" height="58" rx="17" fill="#fff" fill-opacity=".13" stroke="#fff" stroke-opacity=".3"/>
+<text x="101" y="84" font-family="Arial,sans-serif" font-size="34" fill="#d7fffb" text-anchor="middle">✚</text>
+<text x="151" y="48" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="2.1" fill="#a8d7d9">PERSONAL HEALTH INTELLIGENCE</text>
+<text x="151" y="83" font-family="Arial,sans-serif" font-size="36" font-weight="800" letter-spacing="-1.4" fill="#fff">HealthScan <tspan fill="#76e0d8">AI</tspan></text>
+<text x="151" y="110" font-family="Arial,sans-serif" font-size="14" fill="#e1eff2" opacity=".85">Your health information, made clearer.</text>
+<rect x="1030" y="58" width="165" height="37" rx="18.5" fill="#fff" fill-opacity=".08" stroke="#fff" stroke-opacity=".22"/><circle cx="1050" cy="76.5" r="4" fill="#75e1b7"/><text x="1064" y="81" font-family="Arial,sans-serif" font-size="12" fill="#fff">Health dashboard</text>
+<rect x="1208" y="55" width="160" height="43" rx="12" fill="#f5ffff"/><text x="1288" y="82" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#143347" text-anchor="middle">↻  Refresh data</text>
+<!-- Hero -->
+<rect x="58" y="185" width="1324" height="190" rx="22" fill="url(#hero)" stroke="#e2edf2" filter="url(#shadow)"/>
+<text x="94" y="228" font-family="Arial,sans-serif" font-size="11" font-weight="700" letter-spacing="2" fill="#087f8c">YOUR HEALTH, AT A GLANCE</text>
+<text x="94" y="273" font-family="Arial,sans-serif" font-size="31" font-weight="800" letter-spacing="-.8" fill="#112a40">A clearer picture of your health.</text>
+<text x="94" y="309" font-family="Arial,sans-serif" font-size="16" fill="#61768a">Track vital measurements, explore trends, and turn medical-report</text>
+<text x="94" y="334" font-family="Arial,sans-serif" font-size="16" fill="#61768a">details into explanations that are easier to understand.</text>
+<circle cx="1245" cy="280" r="69" fill="none" stroke="#0b8991" stroke-opacity=".16"/><circle cx="1245" cy="280" r="51" fill="#fff" fill-opacity=".65" stroke="#0b8991" stroke-opacity=".18"/>
+<rect x="1215" y="250" width="60" height="60" rx="18" fill="#0d8a91"/><text x="1245" y="290" font-family="Arial,sans-serif" font-size="34" text-anchor="middle" fill="#fff">✚</text>
+<text x="60" y="422" font-family="Arial,sans-serif" font-size="21" font-weight="800" fill="#102539">Health Overview</text>
+<text x="60" y="447" font-family="Arial,sans-serif" font-size="13" fill="#64778b">Your latest recorded vital readings</text>
+<rect x="1274" y="403" width="108" height="29" rx="14" fill="#e8f7f6" stroke="#d4efed"/><text x="1328" y="422" font-family="Arial,sans-serif" font-size="11" font-weight="700" fill="#0b737d" text-anchor="middle">0 readings</text>
+<!-- metric cards -->
+<g filter="url(#shadow)">
+ <rect x="58" y="472" width="318" height="133" rx="17" fill="#fff" stroke="#e5edf3"/>
+ <rect x="394" y="472" width="318" height="133" rx="17" fill="#fff" stroke="#e5edf3"/>
+ <rect x="730" y="472" width="318" height="133" rx="17" fill="#fff" stroke="#e5edf3"/>
+ <rect x="1066" y="472" width="316" height="133" rx="17" fill="#fff" stroke="#e5edf3"/>
+</g>
+<g font-family="Arial,sans-serif">
+ <rect x="78" y="493" width="36" height="36" rx="11" fill="#e7f7f5"/><text x="96" y="518" text-anchor="middle" font-size="18" fill="#087f8c">♥</text><text x="126" y="515" font-size="13" font-weight="600" fill="#697d90">Heart Rate</text><text x="78" y="570" font-size="31" font-weight="800" fill="#18344a">—</text><text x="111" y="568" font-size="13" fill="#8393a2">bpm</text>
+ <rect x="414" y="493" width="36" height="36" rx="11" fill="#e7f7f5"/><text x="432" y="518" text-anchor="middle" font-size="17" fill="#087f8c">◉</text><text x="462" y="515" font-size="13" font-weight="600" fill="#697d90">Blood Oxygen</text><text x="414" y="570" font-size="31" font-weight="800" fill="#18344a">—</text><text x="447" y="568" font-size="13" fill="#8393a2">%</text>
+ <rect x="750" y="493" width="36" height="36" rx="11" fill="#e7f7f5"/><text x="768" y="518" text-anchor="middle" font-size="19" fill="#087f8c">＋</text><text x="798" y="515" font-size="13" font-weight="600" fill="#697d90">Blood Pressure</text><text x="750" y="570" font-size="31" font-weight="800" fill="#18344a">—</text><text x="783" y="568" font-size="13" fill="#8393a2">mmHg</text>
+ <rect x="1086" y="493" width="36" height="36" rx="11" fill="#e7f7f5"/><text x="1104" y="517" text-anchor="middle" font-size="18" fill="#087f8c">♨</text><text x="1134" y="515" font-size="13" font-weight="600" fill="#697d90">Temperature</text><text x="1086" y="570" font-size="31" font-weight="800" fill="#18344a">—</text><text x="1119" y="568" font-size="13" fill="#8393a2">°C</text>
+</g>
+<!-- trend area -->
+<rect x="58" y="632" width="1324" height="365" rx="20" fill="#fff" stroke="#e1e9f0" filter="url(#shadow)"/>
+<text x="86" y="672" font-family="Arial,sans-serif" font-size="21" font-weight="800" fill="#102539">Vitals Trends</text>
+<text x="86" y="696" font-family="Arial,sans-serif" font-size="13" fill="#64778b">Changes across your saved readings</text>
+<rect x="86" y="716" width="1268" height="52" rx="12" fill="#eff8fa" stroke="#d1e9ee"/>
+<text x="104" y="738" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#165d6d">Demo chart preview — illustrative values only.</text>
+<text x="104" y="756" font-family="Arial,sans-serif" font-size="11" fill="#4b6577">Sample trend lines are not your health readings and are not saved to your account.</text>
+<!-- chart cards -->
+<rect x="86" y="789" width="615" height="181" rx="15" fill="#fff" stroke="#e2eaf1"/>
+<rect x="719" y="789" width="635" height="181" rx="15" fill="#fff" stroke="#e2eaf1"/>
+<text x="109" y="819" font-family="Arial,sans-serif" font-size="14" font-weight="800" fill="#19374e">Demo preview · Heart Rate</text>
+<text x="742" y="819" font-family="Arial,sans-serif" font-size="14" font-weight="800" fill="#19374e">Demo preview · Blood Oxygen (SpO₂)</text>
+<g stroke="#e5ecf2" stroke-width="1"><path d="M125 844 H670 M125 875 H670 M125 906 H670 M125 937 H670"/><path d="M765 844 H1320 M765 875 H1320 M765 906 H1320 M765 937 H1320"/></g>
+<polyline points="130,902 250,881 366,910 480,862 590,889 666,868" fill="none" stroke="#e05260" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><g fill="#e05260"><circle cx="130" cy="902" r="4"/><circle cx="250" cy="881" r="4"/><circle cx="366" cy="910" r="4"/><circle cx="480" cy="862" r="4"/><circle cx="590" cy="889" r="4"/><circle cx="666" cy="868" r="4"/></g>
+<polyline points="770,882 880,896 995,858 1105,877 1215,849 1316,865" fill="none" stroke="#087f8c" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><g fill="#087f8c"><circle cx="770" cy="882" r="4"/><circle cx="880" cy="896" r="4"/><circle cx="995" cy="858" r="4"/><circle cx="1105" cy="877" r="4"/><circle cx="1215" cy="849" r="4"/><circle cx="1316" cy="865" r="4"/></g>
+<text x="60" y="1022" font-family="Arial,sans-serif" font-size="11" fill="#8393a2">HEALTHSCAN AI · Dashboard UI preview · Example chart lines are illustrative only</text>
+</svg>
