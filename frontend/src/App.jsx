@@ -209,7 +209,7 @@ function App() {
     try {
       setLoading(true);
 
-      const response = await fetch(`${API}/vitals`);
+      const response = await fetch(`${API}/vitals`, { signal: AbortSignal.timeout(10000) });
       const data = await readApiResponse(response);
       setVitals(normalizeVitals(data));
     } catch (error) {
