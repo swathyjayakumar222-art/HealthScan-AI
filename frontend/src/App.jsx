@@ -2,7 +2,17 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
-const API = "http://127.0.0.1:5000/api";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000").replace(/\/+$/, "");
+const API = API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`;
+
+async function readApiResponse(response) {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = data.error || data.message || `Request failed (${response.status})`;
+    throw new Error(detail);
+  }
+  return data;
+}
 
 function normalizeVitals(data) {
   if (Array.isArray(data)) return data;
@@ -185,16 +195,10 @@ function App() {
       setLoading(true);
 
       const response = await fetch(`${API}/vitals`);
-      if (!response.ok) {
-        throw new Error("Could not load vitals.");
-      }
-
-      const data = await response.json();
+      const data = await readApiResponse(response);
       setVitals(normalizeVitals(data));
     } catch (error) {
-      setMessage(
-        "Unable to load vitals. Make sure the backend is running."
-      );
+      setMessage(`Unable to load vitals: ${error.message || "Check the backend URL and database connection."}`);
     } finally {
       setLoading(false);
     }
@@ -240,11 +244,7 @@ function App() {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || "Could not save vitals.");
-      }
+      const data = await readApiResponse(response);
 
       setMessage("Vitals saved successfully!");
       setForm({
@@ -287,11 +287,7 @@ function App() {
         body: formData,
       });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || "Report upload failed.");
-      }
+      const data = await readApiResponse(response);
 
       setReportId(data.report_id ?? data.id ?? null);
       setReportText(data.text ?? data.extracted_text ?? "");
@@ -313,21 +309,19 @@ function App() {
       setExtracting(true);
       setMessage("");
 
-      const formData = new FormData();
-      formData.append("file", report);
+      // The backend extract-vitals endpoint expects JSON report text,
+      // which is returned by /upload-report.
+      if (!reportText.trim()) {
+        throw new Error("Upload the PDF first so its text can be extracted.");
+      }
 
       const response = await fetch(`${API}/extract-vitals`, {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: reportText }),
       });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          data.error || data.message || "Could not extract vitals."
-        );
-      }
+      const data = await readApiResponse(response);
 
       const extracted = data.vitals ?? data.extracted_vitals ?? data;
       setExtractedVitals(extracted);
@@ -374,11 +368,7 @@ function App() {
         }),
       });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || data.message || "Analysis failed.");
-      }
+      const data = await readApiResponse(response);
 
       setAnalysis(
         typeof data.analysis === "string"
@@ -411,7 +401,7 @@ function App() {
     return null;
   }
 
-  const latest = vitals.length > 0 ? vitals[0] : null;
+  const latest = vitals.length > 0 ? vitals[vitals.length - 1] : null;
 
   const vitalCards = [
     {
@@ -752,9 +742,9 @@ function App() {
                   {vitals.map((vital, index) => (
                     <tr key={vital.id ?? vital.timestamp ?? index}>
                       <td>
-                        {vital.created_at || vital.timestamp
+                        {vital.recorded_at || vital.created_at || vital.timestamp
                           ? new Date(
-                              vital.created_at || vital.timestamp
+                              vital.recorded_at || vital.created_at || vital.timestamp
                             ).toLocaleString()
                           : "—"}
                       </td>
