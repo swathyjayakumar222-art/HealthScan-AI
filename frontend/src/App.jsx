@@ -22,6 +22,16 @@ function normalizeVitals(data) {
   return [];
 }
 
+// Clearly fictional sample values used only to preview the charts when no
+// saved readings are available. These are never written to the database.
+const DEMO_CHART_DATA = [
+  { recorded_at: "2026-10-21T09:00:00", heart_rate: 72, spo2: 98, systolic_bp: 118, diastolic_bp: 78, temperature: 36.7 },
+  { recorded_at: "2026-10-22T09:00:00", heart_rate: 76, spo2: 97, systolic_bp: 120, diastolic_bp: 80, temperature: 36.8 },
+  { recorded_at: "2026-10-23T09:00:00", heart_rate: 70, spo2: 99, systolic_bp: 117, diastolic_bp: 77, temperature: 36.6 },
+  { recorded_at: "2026-10-24T09:00:00", heart_rate: 74, spo2: 98, systolic_bp: 121, diastolic_bp: 79, temperature: 36.9 },
+  { recorded_at: "2026-10-25T09:00:00", heart_rate: 71, spo2: 98, systolic_bp: 119, diastolic_bp: 78, temperature: 36.7 },
+];
+
 
 function VitalLineChart({ title, data, series, unit = "" }) {
   const width = 720;
@@ -190,6 +200,10 @@ function App() {
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+
+  // Keep sample chart values separate from real saved vitals.
+  const isDemoChart = vitals.length === 0;
+  const chartData = isDemoChart ? DEMO_CHART_DATA : vitals;
 
   async function fetchVitals() {
     try {
@@ -514,11 +528,19 @@ function App() {
             </div>
           </div>
 
-          {vitals.length < 2 && (
+          {isDemoChart ? (
+            <div className="demo-chart-notice" role="note">
+              <strong>Demo chart preview — illustrative values only.</strong>
+              <span>
+                These sample values are not your health readings and are not saved.
+                Your real charts will use your saved readings when they are available.
+              </span>
+            </div>
+          ) : vitals.length < 2 ? (
             <p className="empty-state">
-              Add at least two readings with numeric values to see a trend line.
+              One real reading is available. Add another to see how your values change over time.
             </p>
-          )}
+          ) : null}
 
           <div className="trend-chart-grid">
             <VitalLineChart
