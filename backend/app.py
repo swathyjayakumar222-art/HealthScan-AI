@@ -4,6 +4,7 @@ from flask_cors import CORS
 import mysql.connector
 import os
 import re
+from threading import Lock
 
 from dotenv import load_dotenv
 from pypdf import PdfReader
@@ -39,8 +40,86 @@ app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
 # DATABASE CONNECTION
 # ============================================================
 
+# Create the tables this application requires when the database is empty.
+# This is intentionally limited to CREATE TABLE IF NOT EXISTS; it does not
+# delete or overwrite existing user data.
+_SCHEMA_INITIALIZED = False
+_SCHEMA_LOCK = Lock()
+
+
+def _ensure_database_schema(connection):
+    global _SCHEMA_INITIALIZED
+
+    if _SCHEMA_INITIALIZED:
+        return
+
+    with _SCHEMA_LOCK:
+        if _SCHEMA_INITIALIZED:
+            return
+
+        statements = [
+            """
+            CREATE TABLE IF NOT EXISTS vitals (
+                id INT NOT NULL AUTO_INCREMENT,
+                heart_rate INT NULL,
+                spo2 INT NULL,
+                systolic_bp INT NULL,
+                diastolic_bp INT NULL,
+                temperature FLOAT NULL,
+                recorded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                INDEX idx_vitals_recorded_at (recorded_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS reports (
+                id INT NOT NULL AUTO_INCREMENT,
+                filename VARCHAR(255) NOT NULL,
+                report_text LONGTEXT NOT NULL,
+                ai_analysis LONGTEXT NULL,
+                uploaded_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                INDEX idx_reports_uploaded_at (uploaded_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INT NOT NULL AUTO_INCREMENT,
+                name VARCHAR(255) NOT NULL,
+                email VARCHAR(191) NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                UNIQUE KEY uq_users_email (email)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """,
+        ]
+
+        cursor = None
+        try:
+            cursor = connection.cursor()
+            for statement in statements:
+                cursor.execute(statement)
+            connection.commit()
+            _SCHEMA_INITIALIZED = True
+            app.logger.info("HealthScan AI database schema is ready.")
+        except Exception:
+            try:
+                connection.rollback()
+            except Exception:
+                pass
+            app.logger.exception("Could not initialize HealthScan AI database schema.")
+            raise
+        finally:
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+
+
 def get_db_connection():
-    """Connect to local MySQL during development or hosted MySQL on Render."""
+    """Connect to MySQL and initialize required tables if the database is empty."""
     connection_options = {
         "host": os.getenv("MYSQL_HOST", "localhost"),
         "port": int(os.getenv("MYSQL_PORT", "3306")),
@@ -50,15 +129,21 @@ def get_db_connection():
         "connection_timeout": 20,
     }
 
-    # For Aiven, set MYSQL_SSL_CA to the path of the downloaded CA certificate
-    # (for example, /etc/secrets/ca.pem in Render Secret Files).
+    # Aiven connections require SSL. Supply MYSQL_SSL_CA to verify the Aiven
+    # CA certificate when it is configured as a Render Secret File.
     ssl_ca = os.getenv("MYSQL_SSL_CA")
     if ssl_ca:
         connection_options["ssl_ca"] = ssl_ca
         connection_options["ssl_verify_cert"] = True
         connection_options["ssl_verify_identity"] = True
 
-    return mysql.connector.connect(**connection_options)
+    connection = mysql.connector.connect(**connection_options)
+    try:
+        _ensure_database_schema(connection)
+        return connection
+    except Exception:
+        connection.close()
+        raise
 
 
 # ============================================================
