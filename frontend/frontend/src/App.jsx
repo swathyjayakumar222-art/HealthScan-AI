@@ -13,6 +13,20 @@ import {
 
 import "./App.css";
 
+const DEFAULT_API_BASE = import.meta.env.PROD
+  ? "https://healthscan-ai-xabx.onrender.com"
+  : "http://127.0.0.1:5000";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE).replace(/\/+$/, "");
+const API = API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`;
+
+async function readApiResponse(response) {
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Request failed (${response.status})`);
+  }
+  return data;
+}
+
 
 function App() {
 
@@ -61,9 +75,9 @@ function App() {
 
   const fetchVitals = () => {
 
-    fetch("http://127.0.0.1:5000/api/vitals")
+    fetch(`${API}/vitals`)
 
-      .then((response) => response.json())
+      .then(readApiResponse)
 
       .then((data) => {
 
@@ -116,7 +130,7 @@ function App() {
     event.preventDefault();
 
 
-    fetch("http://127.0.0.1:5000/api/vitals", {
+    fetch(`${API}/vitals`, {
 
       method: "POST",
 
@@ -140,7 +154,7 @@ function App() {
 
     })
 
-      .then((response) => response.json())
+      .then(readApiResponse)
 
       .then((data) => {
 
@@ -210,7 +224,7 @@ function App() {
     formData.append("file", selectedFile);
 
 
-    fetch("http://127.0.0.1:5000/api/upload-report", {
+    fetch(`${API}/upload-report`, {
 
       method: "POST",
 
@@ -218,7 +232,7 @@ function App() {
 
     })
 
-      .then((response) => response.json())
+      .then(readApiResponse)
 
       .then((data) => {
 
@@ -257,7 +271,7 @@ function App() {
     setExtractingVitals(true);
 
 
-    fetch("http://127.0.0.1:5000/api/extract-vitals", {
+    fetch(`${API}/extract-vitals`, {
 
       method: "POST",
 
@@ -275,7 +289,7 @@ function App() {
 
     })
 
-      .then((response) => response.json())
+      .then(readApiResponse)
 
       .then((data) => {
 
@@ -346,7 +360,7 @@ function App() {
     }
 
 
-    fetch("http://127.0.0.1:5000/api/vitals", {
+    fetch(`${API}/vitals`, {
 
       method: "POST",
 
@@ -372,7 +386,7 @@ function App() {
 
     })
 
-      .then((response) => response.json())
+      .then(readApiResponse)
 
       .then((data) => {
 
@@ -413,7 +427,7 @@ function App() {
     setAnalysis("");
 
 
-    fetch("http://127.0.0.1:5000/api/analyze-report", {
+    fetch(`${API}/analyze-report`, {
 
       method: "POST",
 
@@ -431,7 +445,7 @@ function App() {
 
     })
 
-      .then((response) => response.json())
+      .then(readApiResponse)
 
       .then((data) => {
 
@@ -468,7 +482,7 @@ function App() {
   // LATEST VITALS
   // -----------------------------
 
-  const latest = vitals.length > 0 ? vitals[0] : null;
+  const latest = vitals.length > 0 ? vitals[vitals.length - 1] : null;
 
 
   // -----------------------------
