@@ -137,7 +137,7 @@ HealthScan-AI/
 │   │   ├── App.jsx            # Dashboard and report workflow
 │   │   ├── App.css            # Application components and layout
 │   │   └── index.css          # Global design tokens and typography
-│   ├── screenschots/          # Existing project interface screenshots
+│   ├── screenshots/           # Project interface screenshots
 │   ├── package.json
 │   └── vite.config.js
 ├── package.json
