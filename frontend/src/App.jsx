@@ -489,8 +489,10 @@ function App() {
       setMessage(data.message || "AI explanation generated successfully.");
     } catch (error) {
       const detail = error?.name === "TimeoutError"
-        ? "The AI request took longer than 90 seconds. Check the Render logs and try again."
-        : (error?.message || "Could not generate the AI explanation.");
+        ? "The AI request took longer than 90 seconds. The backend may still be processing the report; check Render logs and try again."
+        : error instanceof TypeError && /fetch/i.test(error.message || "")
+          ? "The browser could not receive a response from the Render backend. The service may be restarting, the request may have been interrupted, or a cross-origin/network error may have occurred. Check Render Logs for WORKER TIMEOUT or AI_PROVIDER_ERROR, confirm GEMINI_API_KEY and GEMINI_MODEL are set, then retry."
+          : (error?.message || "Could not generate the AI explanation.");
       setAnalysisError(detail);
       setMessage("AI explanation could not be generated.");
     } finally {
