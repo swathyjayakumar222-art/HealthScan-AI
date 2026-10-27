@@ -292,7 +292,7 @@ function App() {
 
       setReportId(data.report_id ?? data.id ?? null);
       setReportText(data.text ?? data.extracted_text ?? "");
-      setMessage("Report uploaded successfully!");
+      setMessage(data.message || "Report uploaded successfully!");
     } catch (error) {
       setMessage(error.message || "Could not upload report.");
     } finally {
