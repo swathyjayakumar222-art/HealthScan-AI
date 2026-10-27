@@ -35,30 +35,30 @@ HealthScan AI brings these workflows into one application. It is an informationa
 The repository includes screenshots of the dashboard, vital-trend charts, manual data entry, and medical-report workflow.
 
 <p align="center">
-  <img src="frontend/screenshots/dashboard.svg" alt="HealthScan AI dashboard" width="88%" />
+  <img src="frontend/screenshots/dashboard.webp" alt="HealthScan AI dashboard" width="88%" />
   <br />
   <em>Health dashboard overview</em>
 </p>
 
 <p align="center">
-  <img src="frontend/screenshots/vitals-trends.svg" alt="HealthScan AI vital trend charts" width="88%" />
+  <img src="frontend/screenshots/vitals-trends.webp" alt="HealthScan AI vital trend charts" width="88%" />
   <br />
   <em>Heart rate, SpO₂, blood pressure, and temperature trends</em>
 </p>
 
 <p align="center">
-  <img src="frontend/screenshots/medical-report.svg" alt="HealthScan AI medical-report workflow" width="88%" />
+  <img src="frontend/screenshots/medical-report.webp" alt="HealthScan AI medical-report workflow" width="88%" />
   <br />
   <em>Medical report upload and recent readings</em>
 </p>
 
 <p align="center">
-  <img src="frontend/screenshots/add-vitals.svg" alt="HealthScan AI manual vital entry" width="88%" />
+  <img src="frontend/screenshots/add-vitals.webp" alt="HealthScan AI manual vital entry" width="88%" />
   <br />
   <em>Manual vital measurement entry</em>
 </p>
 
-> Note: these are refreshed UI preview renders based on the current interface design. Sample chart lines and example report measurements are illustrative only; they are not actual patient data or a captured live Gemini result.
+These screenshots were provided from the current redesigned website and show the interface as captured. Any health values visible in them are example/test readings, not necessarily real patient data.
 
 ## Key features
 
