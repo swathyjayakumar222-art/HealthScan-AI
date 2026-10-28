@@ -3,7 +3,6 @@ from flask_cors import CORS
 
 import mysql.connector
 import os
-import re
 from threading import Lock
 
 from dotenv import load_dotenv
@@ -11,7 +10,7 @@ from pypdf import PdfReader
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from google import genai
-from vital_extractor import extract_vitals as extract_vitals_explainably
+from vital_extractor import FIELDS as VITAL_FIELDS, PARSE_BOUNDS, extract_vitals as extract_vitals_explainably
 
 
 # ============================================================
@@ -701,106 +700,26 @@ def upload_report():
 # EXTRACT VITALS FROM REPORT TEXT
 # ============================================================
 
-def extract_vitals_from_text(text):
-    """Extract supported vital signs from selectable report text.
+def _apply_vital_parse_bounds(parsed_values):
+    """Filter obvious parser artifacts while preserving the explainable engine's raw evidence."""
+    validated = {}
+    for field in VITAL_FIELDS:
+        value = parsed_values.get(field)
+        if value is None:
+            validated[field] = None
+            continue
+        lower, upper = PARSE_BOUNDS[field]
+        validated[field] = value if lower <= float(value) <= upper else None
+    return validated
 
-    This is a transparent rule-based baseline, not a clinical diagnostic
-    algorithm. Values remain nullable when the source text is ambiguous.
-    """
+
+def extract_vitals_from_text(text):
+    """Return only supported, plausibility-bounded values from the explainable parser."""
     if not isinstance(text, str):
         raise TypeError("Report text must be a string.")
+    result = extract_vitals_explainably(text)
+    return _apply_vital_parse_bounds(result.get("vitals") or {})
 
-    result = {
-        "heart_rate": None,
-        "spo2": None,
-        "systolic_bp": None,
-        "diastolic_bp": None,
-        "temperature": None,
-    }
-
-    # Heart rate / pulse, including common abbreviations and units in brackets.
-    match = re.search(
-        r"\b(?:heart\s*rate|\bhr\b|pulse(?:\s*rate)?)\b"
-        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
-        text,
-        re.IGNORECASE,
-    )
-    if match:
-        value = int(match.group(1))
-        if 20 <= value <= 250:
-            result["heart_rate"] = value
-
-    # Oxygen saturation. Accept common report labels and optional percent signs.
-    match = re.search(
-        r"\b(?:spo\s*2|sp[o0]2|oxygen\s*saturation|o2\s*sat(?:uration)?|"
-        r"oxygen\s*sat)\b"
-        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{1,3})\s*%?",
-        text,
-        re.IGNORECASE,
-    )
-    if match:
-        value = int(match.group(1))
-        if 0 <= value <= 100:
-            result["spo2"] = value
-
-    # Blood pressure as BP: 120/80, blood pressure (mmHg) 120/80, etc.
-    bp_match = re.search(
-        r"\b(?:blood\s*pressure|\bbp\b)\b"
-        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?"
-        r"(\d{2,3})\s*/\s*(\d{2,3})\b",
-        text,
-        re.IGNORECASE,
-    )
-    if bp_match:
-        systolic = int(bp_match.group(1))
-        diastolic = int(bp_match.group(2))
-        if 40 <= systolic <= 300 and 20 <= diastolic <= 200:
-            result["systolic_bp"] = systolic
-            result["diastolic_bp"] = diastolic
-    else:
-        systolic_match = re.search(
-            r"\bsystolic(?:\s*(?:blood\s*pressure|bp))?\b"
-            r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
-            text,
-            re.IGNORECASE,
-        )
-        diastolic_match = re.search(
-            r"\bdiastolic(?:\s*(?:blood\s*pressure|bp))?\b"
-            r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
-            text,
-            re.IGNORECASE,
-        )
-        if systolic_match:
-            value = int(systolic_match.group(1))
-            if 40 <= value <= 300:
-                result["systolic_bp"] = value
-        if diastolic_match:
-            value = int(diastolic_match.group(1))
-            if 20 <= value <= 200:
-                result["diastolic_bp"] = value
-
-    # Temperature is normalized to Celsius for consistent storage.
-    match = re.search(
-        r"\b(?:body\s*temperature|temperature|temp)\b"
-        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?"
-        r"(\d{2,3}(?:\.\d+)?)\s*°?\s*([CF])?\b",
-        text,
-        re.IGNORECASE,
-    )
-    if match:
-        temperature = float(match.group(1))
-        unit = (match.group(2) or "").upper()
-        if unit == "F":
-            temperature = (temperature - 32) * 5 / 9
-        if 25 <= temperature <= 45:
-            result["temperature"] = round(temperature, 2)
-
-    return result
-
-
-# ============================================================
-# EXTRACT VITALS API
-# ============================================================
 
 @app.route("/api/extract-vitals", methods=["POST"])
 def extract_vitals():
@@ -820,7 +739,7 @@ def extract_vitals():
         # values so obvious out-of-bound parsing artifacts are not silently saved.
         explainable = extract_vitals_explainably(text)
         raw_vitals = (explainable.get("vitals") or {})
-        vitals = extract_vitals_from_text(text)
+        vitals = _apply_vital_parse_bounds(raw_vitals)
         evidence = {}
         validation_notes = list(explainable.get("validation_notes") or [])
         flagged_fields = {note.get("field") for note in validation_notes}
