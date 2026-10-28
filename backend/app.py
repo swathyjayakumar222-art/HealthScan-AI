@@ -702,87 +702,98 @@ def upload_report():
 # ============================================================
 
 def extract_vitals_from_text(text):
+    """Extract supported vital signs from selectable report text.
+
+    This is a transparent rule-based baseline, not a clinical diagnostic
+    algorithm. Values remain nullable when the source text is ambiguous.
+    """
+    if not isinstance(text, str):
+        raise TypeError("Report text must be a string.")
+
     result = {
         "heart_rate": None,
         "spo2": None,
         "systolic_bp": None,
         "diastolic_bp": None,
-        "temperature": None
+        "temperature": None,
     }
 
-    # Heart rate or pulse
+    # Heart rate / pulse, including common abbreviations and units in brackets.
     match = re.search(
-        r"\b(?:heart\s*rate|pulse(?:\s*rate)?)\b"
-        r"\s*(?:[:=\-]\s*)?(\d{2,3})\b",
+        r"\b(?:heart\s*rate|\bhr\b|pulse(?:\s*rate)?)\b"
+        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
         text,
-        re.IGNORECASE
+        re.IGNORECASE,
     )
-
     if match:
-        result["heart_rate"] = int(match.group(1))
+        value = int(match.group(1))
+        if 20 <= value <= 250:
+            result["heart_rate"] = value
 
-    # Oxygen saturation
+    # Oxygen saturation. Accept common report labels and optional percent signs.
     match = re.search(
-        r"\b(?:spo\s*2|spo2|oxygen\s*saturation)"
-        r"\b\s*(?:[:=\-]\s*)?(\d{1,3})\s*%?",
+        r"\b(?:spo\s*2|sp[o0]2|oxygen\s*saturation|o2\s*sat(?:uration)?|"
+        r"oxygen\s*sat)\b"
+        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{1,3})\s*%?",
         text,
-        re.IGNORECASE
+        re.IGNORECASE,
     )
-
     if match:
-        result["spo2"] = int(match.group(1))
+        value = int(match.group(1))
+        if 0 <= value <= 100:
+            result["spo2"] = value
 
-    # Blood pressure such as BP: 120/80
-    match = re.search(
-        r"\b(?:blood\s*pressure|bp)\b"
-        r"\s*(?:[:=\-]\s*)?(\d{2,3})\s*/\s*(\d{2,3})\b",
+    # Blood pressure as BP: 120/80, blood pressure (mmHg) 120/80, etc.
+    bp_match = re.search(
+        r"\b(?:blood\s*pressure|\bbp\b)\b"
+        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?"
+        r"(\d{2,3})\s*/\s*(\d{2,3})\b",
         text,
-        re.IGNORECASE
+        re.IGNORECASE,
     )
-
-    if match:
-        result["systolic_bp"] = int(match.group(1))
-        result["diastolic_bp"] = int(match.group(2))
+    if bp_match:
+        systolic = int(bp_match.group(1))
+        diastolic = int(bp_match.group(2))
+        if 40 <= systolic <= 300 and 20 <= diastolic <= 200:
+            result["systolic_bp"] = systolic
+            result["diastolic_bp"] = diastolic
     else:
-        # Alternative labels, if both are present
-        systolic = re.search(
+        systolic_match = re.search(
             r"\bsystolic(?:\s*blood\s*pressure)?\b"
-            r"\s*(?:[:=\-]\s*)?(\d{2,3})\b",
+            r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
             text,
-            re.IGNORECASE
+            re.IGNORECASE,
         )
-
-        diastolic = re.search(
+        diastolic_match = re.search(
             r"\bdiastolic(?:\s*blood\s*pressure)?\b"
-            r"\s*(?:[:=\-]\s*)?(\d{2,3})\b",
+            r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
             text,
-            re.IGNORECASE
+            re.IGNORECASE,
         )
+        if systolic_match:
+            value = int(systolic_match.group(1))
+            if 40 <= value <= 300:
+                result["systolic_bp"] = value
+        if diastolic_match:
+            value = int(diastolic_match.group(1))
+            if 20 <= value <= 200:
+                result["diastolic_bp"] = value
 
-        if systolic:
-            result["systolic_bp"] = int(systolic.group(1))
-
-        if diastolic:
-            result["diastolic_bp"] = int(diastolic.group(1))
-
-    # Temperature; retain the number as printed.
+    # Temperature is normalized to Celsius for consistent storage.
     match = re.search(
-        r"\b(?:body\s*)?temperature\b"
-        r"\s*(?:[:=\-]\s*)?(\d{2,3}(?:\.\d+)?)"
-        r"\s*°?\s*([CF])?\b",
+        r"\b(?:body\s*temperature|temperature|temp)\b"
+        r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?"
+        r"(\d{2,3}(?:\.\d+)?)\s*°?\s*([CF])?\b",
         text,
-        re.IGNORECASE
+        re.IGNORECASE,
     )
-
     if match:
         temperature = float(match.group(1))
         unit = (match.group(2) or "").upper()
-
-        # Convert Fahrenheit to Celsius for database consistency.
         if unit == "F":
             temperature = (temperature - 32) * 5 / 9
-
-        result["temperature"] = round(temperature, 2)
+        if 25 <= temperature <= 45:
+            result["temperature"] = round(temperature, 2)
 
     return result
 
@@ -798,29 +809,30 @@ def extract_vitals():
         text = data.get("text", "")
 
         if not isinstance(text, str) or not text.strip():
+            return jsonify({"message": "No report text provided."}), 400
+        if len(text) > 250_000:
             return jsonify({
-                "message": "No report text provided."
-            }), 400
+                "message": "Report text is too long for extraction (maximum 250,000 characters)."
+            }), 413
 
-        extraction = extract_vitals_explainably(text)
-        vitals = extraction["vitals"]
+        vitals = extract_vitals_from_text(text)
+        found_count = sum(value is not None for value in vitals.values())
 
         return jsonify({
-            "message": "Vital extraction completed with source evidence.",
+            "message": "Rule-based vital extraction completed. Verify values against the source PDF.",
             "vitals": vitals,
-            "found_count": sum(value is not None for value in vitals.values()),
-            "evidence": extraction["evidence"],
-            "quality": extraction["quality"],
-            "validation_notes": extraction["validation_notes"],
-            "engine": extraction["engine"],
+            "found_count": found_count,
+            "extraction_method": "label-aware regular expressions",
+            "disclaimer": (
+                "This extractor may miss alternate report layouts or associate a nearby "
+                "number with a label. It is not a diagnostic tool."
+            ),
         }), 200
 
-    except Exception as e:
+    except Exception:
         app.logger.exception("EXTRACT VITALS ERROR")
-
         return jsonify({
-            "message": "Could not extract vitals.",
-            "error": str(e)
+            "message": "Could not extract vitals. Check the text format and try again."
         }), 500
 
 
