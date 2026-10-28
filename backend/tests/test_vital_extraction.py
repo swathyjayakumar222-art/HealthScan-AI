@@ -7,7 +7,7 @@ These tests validate text parsing only; they do not establish clinical accuracy.
 """
 import unittest
 
-from app import extract_vitals_from_text
+from app import app, extract_vitals_from_text
 
 
 class VitalExtractionTests(unittest.TestCase):
@@ -72,6 +72,25 @@ class VitalExtractionTests(unittest.TestCase):
     def test_temperature_is_normalized_to_celsius(self):
         result = extract_vitals_from_text("Body temperature = 100.4°F")
         self.assertEqual(result["temperature"], 38.0)
+
+    def test_api_includes_source_evidence_and_quality_metadata(self):
+        client = app.test_client()
+        response = client.post(
+            "/api/extract-vitals",
+            json={"text": "Heart Rate: 72 bpm\nSpO2: 98%\nBP: 120/80\nTemperature: 36.8 C"},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body["vitals"]["heart_rate"], 72)
+        self.assertIn("heart_rate", body["evidence"])
+        self.assertIn("snippet", body["evidence"]["heart_rate"])
+        self.assertEqual(body["quality"]["fields_found"], 5)
+        self.assertIn("coverage_percent", body["quality"])
+
+    def test_api_rejects_overlong_text(self):
+        client = app.test_client()
+        response = client.post("/api/extract-vitals", json={"text": "x" * 250001})
+        self.assertEqual(response.status_code, 413)
 
     def test_partial_values_do_not_invent_missing_measurements(self):
         result = extract_vitals_from_text("Heart rate: 77 bpm; SpO2: 97%")
