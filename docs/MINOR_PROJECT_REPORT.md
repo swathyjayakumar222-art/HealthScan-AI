@@ -171,17 +171,20 @@ Calculate:
 - Recall = TP / (TP + FN)
 - F1 = 2 × Precision × Recall / (Precision + Recall)
 
-Also record exact-match accuracy per field, units, report layout, missing-value handling, and failure examples. If a denominator is zero, report the metric as undefined. Unit tests are software regression checks, not a substitute for representative evaluation.
+Also record exact-match accuracy per field, units, report layout, missing-value handling, and failure examples. If a denominator is zero, report the metric as undefined. The current synthetic corpus happens to achieve 100% field-level agreement because it consists of a small set of authored examples; this must not be presented as accuracy on real reports. Unit tests are software regression checks, not a substitute for representative evaluation. The completed CI run for commit 0a6ef1b reported 19 passing backend tests and passed the synthetic evaluation step.
 
-| Evaluation item | Result to record |
+| Evaluation item | Observed result |
 |---|---|
-| Unit tests passed | Fill in after running test suite |
-| Number of labelled snippets | Fill in after preparing dataset |
-| Heart-rate precision / recall / F1 | Measure on held-out set |
-| SpO₂ precision / recall / F1 | Measure on held-out set |
-| Blood-pressure exact pair match | Measure on held-out set |
-| Temperature exact match after unit normalization | Measure on held-out set |
-| Known failure cases | Document examples |
+| Automated backend tests | 19 tests passed in the completed CI run at commit 0a6ef1b |
+| Synthetic regression corpus | 9 authored text snippets; not clinical or real-world reports |
+| Field-level exact agreement | 100.0% on those 9 synthetic examples only |
+| Heart-rate precision / recall / F1 | 1.000 / 1.000 / 1.000 on synthetic examples |
+| SpO₂ precision / recall / F1 | 1.000 / 1.000 / 1.000 on synthetic examples |
+| Systolic BP precision / recall / F1 | 1.000 / 1.000 / 1.000 on synthetic examples |
+| Diastolic BP precision / recall / F1 | 1.000 / 1.000 / 1.000 on synthetic examples |
+| Temperature precision / recall / F1 | 1.000 / 1.000 / 1.000 on synthetic examples |
+| Held-out real-world report evaluation | Not performed |
+| Known failure cases | Scanned PDFs without OCR, unfamiliar labels, ambiguous units, and numbers incorrectly associated with nearby labels |
 
 ## 12. Security, privacy and responsible use
 
