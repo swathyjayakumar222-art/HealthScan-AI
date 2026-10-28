@@ -69,11 +69,12 @@ These screenshots were provided from the current redesigned website and show the
 - Reports when no selectable text is found; scanned image PDFs require OCR, which is not currently built into the extraction pipeline.
 
 ### 2. Structured vital extraction
-- Uses Python regular expressions to look for supported values in extracted report text.
-- Supports heart rate, oxygen saturation (SpO₂), blood pressure, and body temperature.
-- Displays detected values as structured measurement cards rather than raw JSON.
-- Marks values that were not found instead of inventing measurements.
-- Lets users save supported extracted measurements to their vital history.
+- Uses label-aware rules for heart rate, oxygen saturation (SpO₂), blood pressure, and body temperature.
+- Shows the source line and matching rule for each supported value when available.
+- Returns parser coverage metadata and review flags; coverage is explicitly not an accuracy score.
+- Converts Fahrenheit temperature to Celsius for consistent history storage.
+- Marks unsupported values as missing rather than inventing measurements and asks users to verify extracted results against the source PDF.
+- Lets users review and save supported extracted measurements to their vital history.
 
 ### 3. AI-assisted report explanation
 - Uses the **Google Gemini API** to generate an explanation distinct from the structured extraction results.
@@ -84,13 +85,36 @@ These screenshots were provided from the current redesigned website and show the
 ### 4. Vital tracking and visualizations
 - Supports manual entry of heart rate, SpO₂, systolic/diastolic blood pressure, and temperature.
 - Stores readings in MySQL.
-- Visualizes saved numeric readings over time.
-- When no readings exist, the dashboard can show a clearly labelled illustrative chart preview. **Preview values are not real health measurements and are not saved.**
+- Visualizes only saved numeric readings over time; it does not mix demo chart values into real history.
+- Calculates transparent first-to-latest differences for numeric fields when at least two values are available.
+- Includes trend summaries with plain-language cautions that describe data patterns, not medical improvement or deterioration.
 
 ### 5. User and report records
 - Includes backend signup and login endpoints with password hashing.
 - Stores report text and generated analysis where database persistence succeeds.
 - Provides diagnostic endpoints for API and database connectivity.
+
+### 6. Report vault and comparison
+- Searches saved reports by filename, report text, or saved AI explanation.
+- Reloads an existing report into the analysis workspace.
+- Compares vital values extracted from two saved reports side by side and shows arithmetic differences.
+- Warns users to verify comparison values against both source documents.
+
+### 7. Export and health-literacy guide
+- Exports saved vital readings as a CSV that can be opened in spreadsheet software.
+- Offers a print/save-page action for project summaries.
+- Includes an educational guide to the four supported vital-sign categories with broad adult reference points and important context caveats.
+
+### 8. Explainable extraction and evaluation
+- The backend returns source-line evidence, the matched rule, supported-field coverage, and parser warning notes.
+- Includes automated unit tests for common labels, alternate formats, Fahrenheit conversion, missing fields, and invalid inputs.
+- Includes a reproducible synthetic regression script that reports exact agreement and precision/recall/F1. Its output is only for authored synthetic examples, not clinical validation.
+
+### 9. Project documentation
+- [Minor project report](docs/MINOR_PROJECT_REPORT.md)
+- [Viva questions and answers](docs/VIVA_QUESTIONS.md)
+- [Vital extraction regression tests](backend/tests/)
+- [Synthetic extraction evaluation script](backend/evaluate_extraction.py)
 
 ## How it works
 
@@ -98,16 +122,16 @@ These screenshots were provided from the current redesigned website and show the
 flowchart TD
     U[User uploads a PDF] --> P[Flask API + PyPDF]
     P --> T[Extract selectable PDF text]
-    T --> V[Regex-based vital extraction]
+    T --> V[Explainable vital extraction]
     T --> G[Google Gemini report explanation]
-    V --> R[Structured measurement cards]
+    V --> R[Values + matched source evidence + parser notes]
     G --> A[Plain-language AI explanation]
-    R --> S[User reviews and optionally saves readings]
+    R --> S[User verifies and optionally saves readings]
     S --> D[(MySQL database)]
-    D --> C[Dashboard and trend charts]
+    D --> C[Saved history, trends, report comparison and CSV export]
 ~~~
 
-Vital extraction and AI explanation are **separate operations**: extraction finds supported values in the text; Gemini explains the report's content in context. The AI explanation may be incomplete or inaccurate and should be reviewed with a qualified healthcare professional.
+Vital extraction and AI explanation are **separate operations**: the explainable parser finds supported values and their source lines; Gemini explains the report's content in context. The AI explanation may be incomplete or inaccurate and should be reviewed with a qualified healthcare professional.
 
 ## Tech stack
 
@@ -117,7 +141,7 @@ Vital extraction and AI explanation are **separate operations**: extraction find
 | Styling | CSS | Responsive layout, forms, cards, and chart presentation |
 | Backend | Python, Flask | REST API and report processing |
 | PDF processing | PyPDF | Extracts selectable text from PDF pages |
-| Measurement extraction | Python regular expressions | Finds supported vital values in report text |
+| Measurement extraction | Explainable Python rules + regular expressions | Finds supported values, matched source lines, and parse-quality metadata |
 | AI | Google Gemini API, <code>google-genai</code> | Generates a report explanation |
 | Database | MySQL | Stores vital readings, users, and report records |
 | Database hosting | Aiven | Managed MySQL service in the deployed setup |
@@ -130,6 +154,9 @@ Vital extraction and AI explanation are **separate operations**: extraction find
 HealthScan-AI/
 ├── backend/
 │   ├── app.py                 # Flask routes, PDF processing, Gemini, MySQL
+│   ├── vital_extractor.py     # Explainable parser, source evidence and quality notes
+│   ├── evaluate_extraction.py # Synthetic regression evaluation and metrics
+│   ├── tests/                 # Parser regression tests
 │   ├── requirements.txt       # Python dependencies
 │   └── gunicorn.conf.py       # Production request timeout settings
 ├── frontend/
@@ -140,6 +167,9 @@ HealthScan-AI/
 │   ├── screenshots/           # Project interface screenshots
 │   ├── package.json
 │   └── vite.config.js
+├── docs/
+│   ├── MINOR_PROJECT_REPORT.md
+│   └── VIVA_QUESTIONS.md
 ├── package.json
 └── README.md
 ~~~
@@ -257,6 +287,31 @@ For Render, add backend secrets in **Render → service → Environment**. Never
 | POST | <code>/api/analyze-report</code> | Generate an AI-assisted explanation |
 | PUT | <code>/api/reports/{report_id}/analysis</code> | Save or update a report explanation |
 
+## Run tests and reproduce the extraction evaluation
+
+From the repository root, run backend regression tests:
+
+~~~bash
+cd backend
+python -m unittest discover -s tests -v
+~~~
+
+Run the small synthetic evaluation corpus:
+
+~~~bash
+python evaluate_extraction.py
+~~~
+
+The evaluation script prints exact agreement and per-field precision, recall and F1 for its authored synthetic examples. These values measure only agreement on that tiny regression corpus; **they are not real-world or clinical accuracy estimates**. For project evaluation, create a separate manually labelled test set of privacy-safe report snippets and measure performance without tuning on the held-out examples.
+
+Build the frontend:
+
+~~~bash
+cd frontend
+npm ci
+npm run build
+~~~
+
 ## Deployment
 
 - **Frontend:** [health-scan-ai-henna.vercel.app](https://health-scan-ai-henna.vercel.app/)
@@ -270,7 +325,7 @@ The deployed backend also requires a working MySQL connection and <code>GEMINI_A
 - OCR for scanned image-only PDFs.
 - More robust measurement parsing for varied report layouts and units.
 - Automated backend/frontend tests and API contract tests.
-- Stronger user/session authorization before storing real user health records.
+- Authenticated sessions and per-user authorization for vital/report rows before real health records are stored. The current public prototype does not fully isolate these records by user; do not upload confidential patient information.
 - Better historical-report management and downloadable summaries.
 
 ## Security and medical disclaimer
