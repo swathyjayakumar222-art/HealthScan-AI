@@ -776,7 +776,7 @@ function App() {
                       <span>{item.label}</span>
                       <strong>{item.value == null || item.value === "" ? "Not detected" : String(item.value) + (item.unit ? " " + item.unit : "")}</strong>
                       {evidence?.snippet && <small className="evidence-snippet"><b>Matched source:</b> {evidence.snippet}</small>}
-                      {evidence?.rule && <small className="evidence-rule">{evidence.rule}</small>}
+                      {evidence?.rule && <small className="evidence-rule">{evidence.rule}{evidence.confidence ? " · " + evidence.confidence : ""}</small>}
                     </div>
                   );
                 })}
