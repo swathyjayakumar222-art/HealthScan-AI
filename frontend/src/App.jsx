@@ -611,6 +611,17 @@ function App() {
           </div>
         </section>
 
+        <nav className="section-nav" aria-label="Dashboard sections">
+          <a href="#overview">Overview</a>
+          <a href="#trends">Trends</a>
+          <a href="#insights">Insights</a>
+          <a href="#vitals-entry">Add vitals</a>
+          <a href="#report-lab">Report lab</a>
+          <a href="#report-history">Report vault</a>
+          <a href="#compare-reports">Compare</a>
+          <a href="#health-guide">Health guide</a>
+        </nav>
+
         {errorMessage && (
           <div className="feedback-message feedback-error" role="alert">
             <span>{errorMessage}</span>
@@ -763,7 +774,7 @@ function App() {
                 <div className="parser-warning" role="note">
                   <strong>Review flags</strong>
                   <ul>{extractionMeta.validation_notes.map((note, index) => (
-                    <li key={String(note.field || "flag") + "-" + index}>{note.message}</li>
+                    <li key={String(note.field || "flag") + "-" + index}><strong>{note.label || String(note.field || "Value")}{note.value != null ? ": " + note.value : ""}</strong> — {note.message}</li>
                   ))}</ul>
                 </div>
               )}
