@@ -270,6 +270,7 @@ function App() {
     { title: "Heart rate", ...getTrend(vitals, ["heart_rate", "heartRate"]), unit: "bpm" },
     { title: "SpO₂", ...getTrend(vitals, ["spo2", "oxygen_saturation"]), unit: "%" },
     { title: "Systolic BP", ...getTrend(vitals, ["systolic_bp", "systolic"]), unit: "mmHg" },
+    { title: "Diastolic BP", ...getTrend(vitals, ["diastolic_bp", "diastolic"]), unit: "mmHg" },
     { title: "Temperature", ...getTrend(vitals, ["temperature", "body_temperature"]), unit: "°C" },
   ];
 
@@ -663,6 +664,7 @@ function App() {
             <VitalChart title="Heart rate" data={vitals} unit="bpm" dataKey="heart_rate" color="#d95a67" description="Beats per minute" />
             <VitalChart title="Blood oxygen (SpO₂)" data={vitals} unit="%" dataKey="spo2" color="#2c87c9" description="Oxygen saturation" />
             <VitalChart title="Systolic blood pressure" data={vitals} unit="mmHg" dataKey="systolic_bp" color="#7b61c9" description="Upper blood pressure value" />
+            <VitalChart title="Diastolic blood pressure" data={vitals} unit="mmHg" dataKey="diastolic_bp" color="#16a085" description="Lower blood pressure value" />
             <VitalChart title="Body temperature" data={vitals} unit="°C" dataKey="temperature" color="#dd9638" description="Stored in Celsius" />
           </div>
         </section>
