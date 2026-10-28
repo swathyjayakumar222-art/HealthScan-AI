@@ -120,7 +120,9 @@ function VitalChart({ title, data, unit, dataKey, color, description }) {
 
 function getTrend(readings, keys) {
   const values = readings
-    .map((item) => Number(valueOf(item, ...keys)))
+    .map((item) => valueOf(item, ...keys))
+    .filter((value) => value !== null && value !== undefined && value !== "")
+    .map((value) => Number(value))
     .filter((value) => Number.isFinite(value));
   if (values.length < 2) return { label: "Not enough data", tone: "neutral", delta: null, count: values.length };
   const first = values[0];
@@ -424,6 +426,7 @@ function App() {
     }
     try {
       setAnalyzing(true);
+      setErrorMessage("");
       setAnalysis("");
       setAnalysisError("");
       setMessage("Generating a plain-language explanation. This can take up to a minute.");
@@ -479,6 +482,7 @@ function App() {
 
   function loadReport(item) {
     setSelectedHistoryId(item.id);
+    setReport(null);
     setReportId(item.id);
     setReportText(item.report_text || "");
     setAnalysis(item.ai_analysis || "");
