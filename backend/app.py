@@ -823,6 +823,7 @@ def extract_vitals():
         vitals = extract_vitals_from_text(text)
         evidence = {}
         validation_notes = list(explainable.get("validation_notes") or [])
+        flagged_fields = {note.get("field") for note in validation_notes}
 
         for field, value in vitals.items():
             raw_value = raw_vitals.get(field)
@@ -830,7 +831,7 @@ def extract_vitals():
                 source = (explainable.get("evidence") or {}).get(field)
                 if source:
                     evidence[field] = source
-            elif raw_value is not None and value is None:
+            elif raw_value is not None and value is None and field not in flagged_fields:
                 validation_notes.append({
                     "field": field,
                     "label": field.replace("_", " ").title(),
