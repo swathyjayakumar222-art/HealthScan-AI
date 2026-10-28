@@ -1322,3 +1322,61 @@
   .trend-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-footer { border-top: 1px solid #ccc; }
 }
+
+
+/* Explainable extraction evidence and parser diagnostics */
+.extraction-quality {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin: 2px 0 14px;
+}
+.extraction-quality > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px 12px;
+  background: #f0f8f9;
+  border: 1px solid #d8ecee;
+  border-radius: 10px;
+}
+.extraction-quality strong { color: #356477; font-size: 10px; }
+.extraction-quality span { color: #264c61; font-size: 12px; overflow-wrap: anywhere; }
+.extraction-quality em { color: #7a8d9b; font-size: 10px; font-style: normal; }
+.evidence-snippet {
+  display: block;
+  margin-top: 9px;
+  padding: 8px;
+  color: #3f6478;
+  background: #f2f8fb;
+  border-left: 3px solid #6cb9c0;
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.evidence-snippet b { color: #21566a; }
+.evidence-rule { display: block; margin-top: 5px; color: #8a9aa7; font-size: 9px; line-height: 1.5; }
+.parser-warning {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  color: #765626;
+  background: #fff8e9;
+  border: 1px solid #f1e0bd;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.parser-warning strong { color: #664714; }
+.parser-warning ul { margin: 5px 0 0; padding-left: 18px; }
+@media (max-width: 1050px) {
+  .extraction-quality { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 430px) {
+  .extraction-quality { grid-template-columns: 1fr 1fr; }
+}
+@media print {
+  .extraction-quality, .parser-warning { break-inside: avoid; }
+}
