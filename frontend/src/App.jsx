@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -191,6 +190,7 @@ function App() {
   const [reportText, setReportText] = useState("");
   const [reportId, setReportId] = useState(null);
   const [extractedVitals, setExtractedVitals] = useState(null);
+  const [extractionMeta, setExtractionMeta] = useState(null);
   const [analysis, setAnalysis] = useState("");
   const [analysisError, setAnalysisError] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -362,6 +362,7 @@ function App() {
       setErrorMessage("");
       setReportText("");
       setExtractedVitals(null);
+      setExtractionMeta(null);
       setAnalysis("");
       setAnalysisError("");
       setReportId(null);
@@ -401,6 +402,13 @@ function App() {
         signal: AbortSignal.timeout(15000),
       });
       setExtractedVitals(data.vitals ?? data.extracted_vitals ?? data);
+      setExtractionMeta({
+        engine: data.engine || data.extraction_method || "Rule-based vital extractor",
+        quality: data.quality || null,
+        evidence: data.evidence || {},
+        validation_notes: data.validation_notes || [],
+        disclaimer: data.disclaimer || "",
+      });
       setMessage((data.found_count ?? 0) + " supported measurement(s) detected. Please verify each value against the source report.");
     } catch (error) {
       setErrorMessage(error.message || "Vital extraction failed.");
@@ -475,6 +483,7 @@ function App() {
     setReportText(item.report_text || "");
     setAnalysis(item.ai_analysis || "");
     setExtractedVitals(null);
+    setExtractionMeta(null);
     setAnalysisError("");
     setMessage("Loaded " + (item.filename || "saved report") + ". You can extract values or regenerate the explanation.");
     document.getElementById("report-lab")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -709,6 +718,7 @@ function App() {
                     setReportText("");
                     setReportId(null);
                     setExtractedVitals(null);
+                    setExtractionMeta(null);
                     setAnalysis("");
                     setAnalysisError("");
                     setSelectedHistoryId(null);
@@ -733,10 +743,39 @@ function App() {
           {extractedVitals && (
             <div className="results-panel">
               <div className="panel-title-row"><div><p className="section-eyebrow">RESULT 01</p><h3>Detected measurements</h3><p>{extractedCount} supported measurement group(s) found in the uploaded text.</p></div><span className="result-count">Review before saving</span></div>
+              {extractionMeta?.quality && (
+                <div className="extraction-quality">
+                  <div><strong>Extraction engine</strong><span>{extractionMeta.engine}</span></div>
+                  <div><strong>Fields detected</strong><span>{extractionMeta.quality.fields_found ?? extractedCount} of {extractionMeta.quality.fields_supported ?? 5}</span></div>
+                  <div><strong>Field coverage</strong><span>{extractionMeta.quality.coverage_percent ?? 0}% <em>(not accuracy)</em></span></div>
+                  {extractionMeta.quality.nonempty_lines != null && (
+                    <div><strong>Text scanned</strong><span>{extractionMeta.quality.nonempty_lines} non-empty lines</span></div>
+                  )}
+                </div>
+              )}
+              {Boolean(extractionMeta?.validation_notes?.length) && (
+                <div className="parser-warning" role="note">
+                  <strong>Review flags</strong>
+                  <ul>{extractionMeta.validation_notes.map((note, index) => (
+                    <li key={String(note.field || "flag") + "-" + index}>{note.message}</li>
+                  ))}</ul>
+                </div>
+              )}
               <div className="extracted-vitals-grid">
-                {extractedItems.map((item) => (
-                  <div className="extracted-vital" key={item.key}><span>{item.label}</span><strong>{item.value == null || item.value === "" ? "Not detected" : String(item.value) + (item.unit ? " " + item.unit : "")}</strong></div>
-                ))}
+                {extractedItems.map((item) => {
+                  const evidenceKey = item.key === "blood_pressure"
+                    ? (extractionMeta?.evidence?.systolic_bp ? "systolic_bp" : "diastolic_bp")
+                    : item.key;
+                  const evidence = extractionMeta?.evidence?.[evidenceKey];
+                  return (
+                    <div className="extracted-vital" key={item.key}>
+                      <span>{item.label}</span>
+                      <strong>{item.value == null || item.value === "" ? "Not detected" : String(item.value) + (item.unit ? " " + item.unit : "")}</strong>
+                      {evidence?.snippet && <small className="evidence-snippet"><b>Matched source:</b> {evidence.snippet}</small>}
+                      {evidence?.rule && <small className="evidence-rule">{evidence.rule}</small>}
+                    </div>
+                  );
+                })}
               </div>
               <div className="result-footer"><p>Extraction is pattern-based and can miss alternate layouts or select a nearby number. Compare every value with the PDF before saving it.</p><button type="button" className="primary-button" onClick={handleSaveExtracted} disabled={savingExtracted || !extractedCount}>{savingExtracted ? "Saving…" : "Save detected values to history"}</button></div>
             </div>
