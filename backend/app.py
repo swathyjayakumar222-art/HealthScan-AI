@@ -11,6 +11,7 @@ from pypdf import PdfReader
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from google import genai
+from vital_extractor import extract_vitals as extract_vitals_explainably
 
 
 # ============================================================
@@ -801,14 +802,17 @@ def extract_vitals():
                 "message": "No report text provided."
             }), 400
 
-        vitals = extract_vitals_from_text(text)
+        extraction = extract_vitals_explainably(text)
+        vitals = extraction["vitals"]
 
         return jsonify({
-            "message": "Vital extraction completed.",
+            "message": "Vital extraction completed with source evidence.",
             "vitals": vitals,
-            "found_count": sum(
-                value is not None for value in vitals.values()
-            )
+            "found_count": sum(value is not None for value in vitals.values()),
+            "evidence": extraction["evidence"],
+            "quality": extraction["quality"],
+            "validation_notes": extraction["validation_notes"],
+            "engine": extraction["engine"],
         }), 200
 
     except Exception as e:
