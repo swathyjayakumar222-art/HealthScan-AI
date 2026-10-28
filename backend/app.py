@@ -815,17 +815,54 @@ def extract_vitals():
                 "message": "Report text is too long for extraction (maximum 250,000 characters)."
             }), 413
 
+        # Run the explainable engine for source evidence, rule names, coverage
+        # metadata, and warnings. The guarded baseline is used for displayed
+        # values so obvious out-of-bound parsing artifacts are not silently saved.
+        explainable = extract_vitals_explainably(text)
+        raw_vitals = (explainable.get("vitals") or {})
         vitals = extract_vitals_from_text(text)
+        evidence = {}
+        validation_notes = list(explainable.get("validation_notes") or [])
+
+        for field, value in vitals.items():
+            raw_value = raw_vitals.get(field)
+            if value is not None and raw_value == value:
+                source = (explainable.get("evidence") or {}).get(field)
+                if source:
+                    evidence[field] = source
+            elif raw_value is not None and value is None:
+                validation_notes.append({
+                    "field": field,
+                    "label": field.replace("_", " ").title(),
+                    "value": raw_value,
+                    "message": (
+                        "A labelled candidate was detected, but the guarded parser "
+                        "did not return it. Verify the source line, units, and format."
+                    ),
+                })
+
         found_count = sum(value is not None for value in vitals.values())
+        quality = dict(explainable.get("quality") or {})
+        quality["fields_found"] = found_count
+        quality["fields_supported"] = len(vitals)
+        quality["coverage_percent"] = round(found_count / max(len(vitals), 1) * 100, 1)
+        quality["note"] = (
+            "Coverage is the share of supported fields detected in this text; "
+            "it is not extraction accuracy or a clinical assessment."
+        )
 
         return jsonify({
-            "message": "Rule-based vital extraction completed. Verify values against the source PDF.",
+            "message": "Explainable vital extraction completed. Verify every value against the source PDF.",
             "vitals": vitals,
             "found_count": found_count,
-            "extraction_method": "label-aware regular expressions",
+            "extraction_method": "label-aware regular expressions with source evidence",
+            "engine": explainable.get("engine", "HealthScan Explainable Extractor"),
+            "evidence": evidence,
+            "quality": quality,
+            "validation_notes": validation_notes,
             "disclaimer": (
-                "This extractor may miss alternate report layouts or associate a nearby "
-                "number with a label. It is not a diagnostic tool."
+                "This parser may miss alternate layouts or associate a nearby number with "
+                "a label. Values and trends are informational only, not a diagnosis."
             ),
         }), 200
 
