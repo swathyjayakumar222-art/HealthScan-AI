@@ -759,13 +759,13 @@ def extract_vitals_from_text(text):
             result["diastolic_bp"] = diastolic
     else:
         systolic_match = re.search(
-            r"\bsystolic(?:\s*blood\s*pressure)?\b"
+            r"\bsystolic(?:\s*(?:blood\s*pressure|bp))?\b"
             r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
             text,
             re.IGNORECASE,
         )
         diastolic_match = re.search(
-            r"\bdiastolic(?:\s*blood\s*pressure)?\b"
+            r"\bdiastolic(?:\s*(?:blood\s*pressure|bp))?\b"
             r"\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b",
             text,
             re.IGNORECASE,
