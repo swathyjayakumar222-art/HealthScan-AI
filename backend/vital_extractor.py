@@ -30,22 +30,22 @@ PARSE_BOUNDS = {
 # numbers (for example age, date, or lab result IDs) as vital measurements.
 PATTERNS = {
     "heart_rate": [
-        (re.compile(r"\b(?:heart\s*rate|pulse(?:\s*rate)?|hr)\b\s*(?:[:=\-]\s*)?(\d{2,3})(?:\s*(?:bpm|beats\s*/?\s*min))?\b", re.I), "labelled heart-rate/pulse pattern"),
+        (re.compile(r"\b(?:heart\s*rate|pulse(?:\s*rate)?|hr)\b\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})(?:\s*(?:bpm|beats\s*/?\s*min))?\b", re.I), "labelled heart-rate/pulse pattern"),
     ],
     "spo2": [
-        (re.compile(r"\b(?:spo\s*2|spo2|oxygen\s*saturation|o2\s*(?:sat|saturation))\b\s*(?:[:=\-]\s*)?(\d{1,3})\s*%?\b", re.I), "labelled oxygen-saturation pattern"),
+        (re.compile(r"\b(?:spo\s*2|spo2|oxygen\s*saturation|o2\s*(?:sat|saturation))\b\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{1,3})\s*%?\b", re.I), "labelled oxygen-saturation pattern"),
     ],
     "blood_pressure": [
-        (re.compile(r"\b(?:blood\s*pressure|bp)\b\s*(?:[:=\-]\s*)?(\d{2,3})\s*/\s*(\d{2,3})\b", re.I), "paired blood-pressure pattern"),
+        (re.compile(r"\b(?:blood\s*pressure|bp)\b\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\s*/\s*(\d{2,3})\b", re.I), "paired blood-pressure pattern"),
     ],
     "systolic_bp": [
-        (re.compile(r"\bsystolic(?:\s*blood\s*pressure)?\b\s*(?:[:=\-]\s*)?(\d{2,3})\b", re.I), "labelled systolic pattern"),
+        (re.compile(r"\bsystolic(?:\s*(?:blood\s*pressure|bp))?\b\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b", re.I), "labelled systolic pattern"),
     ],
     "diastolic_bp": [
-        (re.compile(r"\bdiastolic(?:\s*blood\s*pressure)?\b\s*(?:[:=\-]\s*)?(\d{2,3})\b", re.I), "labelled diastolic pattern"),
+        (re.compile(r"\bdiastolic(?:\s*(?:blood\s*pressure|bp))?\b\s*(?:\([^)]{0,30}\))?\s*(?:[:=\-]\s*)?(\d{2,3})\b", re.I), "labelled diastolic pattern"),
     ],
     "temperature": [
-        (re.compile(r"\b(?:body\s*)?(?:temperature|temp)\b\s*(?:[:=\-]\s*)?(\d{2,3}(?:\.\d+)?)\s*°?\s*([CF])?\b", re.I), "labelled temperature pattern"),
+        (re.compile(r"\b(?:body\s*)?(?:temperature|temp)\b\s*(?:\(\s*°?\s*([CF])\s*\))?\s*(?:[:=\-]\s*)?(\d{2,3}(?:\.\d+)?)\s*°?\s*([CF])?\b", re.I), "labelled temperature pattern"),
     ],
 }
 
@@ -94,15 +94,15 @@ def extract_vitals(text: str) -> dict[str, Any]:
 
     match, line, rule = _first_match(lines, PATTERNS["temperature"])
     if match:
-        value = float(match.group(1))
-        unit = (match.group(2) or "C").upper()
+        value = float(match.group(2))
+        unit = (match.group(3) or match.group(1) or "C").upper()
         if unit == "F":
             value = (value - 32) * 5 / 9
         values["temperature"] = round(value, 2)
         evidence["temperature"] = {
             "snippet": line,
             "rule": rule or "",
-            "confidence": "label and unit match" if match.group(2) else "label match; Celsius assumed when no unit is printed",
+            "confidence": "label and unit match" if (match.group(1) or match.group(3)) else "label match; Celsius assumed when no unit is printed",
         }
 
     validation_notes = []
