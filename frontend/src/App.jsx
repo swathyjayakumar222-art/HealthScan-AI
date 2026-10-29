@@ -778,7 +778,6 @@ function App() {
                     setReportId(null);
                     setExtractedVitals(null);
                     setExtractionMeta(null);
-                    setExtractionMeta(null);
                     setAnalysis("");
                     setAnalysisError("");
                     setSelectedHistoryId(null);
@@ -830,8 +829,6 @@ function App() {
                   <strong>Training examples:</strong> {extractionMeta.training_examples ?? "n/a"}.{" "}
                   <strong>Training source:</strong> {extractionMeta.training_corpus}. These are authored synthetic examples; confidence and coverage are not real-world accuracy.
                 </div>
-              )}
-              {Boolean(extractionMeta?.validation_notes?.length) && (
               )}
               {Boolean(extractionMeta?.validation_notes?.length) && (
                 <div className="parser-warning" role="note">
