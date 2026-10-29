@@ -7,6 +7,7 @@ The corpus is synthetic and these tests do not establish medical accuracy.
 """
 import unittest
 
+from app import app
 from ml_vital_extractor import extract_vitals_ml, get_classifier, read_training_rows
 
 
@@ -71,6 +72,29 @@ class MLVitalExtractorTests(unittest.TestCase):
             extract_vitals_ml("")
         with self.assertRaises(ValueError):
             extract_vitals_ml("x" * 250001)
+
+    def test_ml_api_returns_model_metadata_and_line_trace(self):
+        client = app.test_client()
+        response = client.post(
+            "/api/ml-extract-vitals",
+            json={"text": "Heart Rate: 72 bpm\nSpO2: 98%", "confidence_threshold": 0.0},
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body["vitals"]["heart_rate"], 72)
+        self.assertEqual(body["vitals"]["spo2"], 98)
+        self.assertIn("algorithm", body)
+        self.assertGreater(body["training_examples"], 0)
+        self.assertIn("predictions", body)
+        self.assertIn("quality", body)
+
+    def test_ml_api_validates_threshold(self):
+        client = app.test_client()
+        response = client.post(
+            "/api/ml-extract-vitals",
+            json={"text": "Heart Rate: 72 bpm", "confidence_threshold": 2.0},
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_rejects_invalid_confidence_threshold(self):
         with self.assertRaises(ValueError):
