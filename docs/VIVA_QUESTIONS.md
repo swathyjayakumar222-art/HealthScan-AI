@@ -1,6 +1,6 @@
 # HealthScan AI — Viva Questions and Answers
 
-Use these to prepare for the demonstration. Explain what the code really does; do not claim OCR, a trained medical NER model, diagnostic performance, or clinical validation unless you implement and measure them.
+Use these to prepare for the demonstration. The repository now includes an experimental supervised line classifier trained on authored synthetic examples; it is not a trained medical NER system and has not been clinically validated. Do not claim OCR or real-world extraction performance unless you implement and measure them.
 
 ## Project overview
 
@@ -51,7 +51,7 @@ It searches text for known labels such as heart rate, pulse, SpO₂, blood press
 They are lightweight, deterministic, easy to explain, and straightforward to test. However, they depend on known label patterns and can fail on unfamiliar layouts.
 
 ### 15. Is regex extraction machine learning?
-No. The current vital parser is rule-based text processing, not a trained ML model. A real ML extension would require a labelled dataset, train/test separation, model selection and measured evaluation.
+No. The baseline parser is rule-based. A separate experimental module now uses supervised machine learning to classify report lines into vital-related categories. After the ML category is predicted, a constrained parser extracts a value from that line. This classifier is trained on a small authored synthetic corpus, not actual medical reports, and is not clinically validated.
 
 ### 16. How is temperature normalized?
 When a Fahrenheit unit is detected, the parser converts it to Celsius using (F − 32) × 5 / 9 and rounds the stored value. Unit ambiguity is a known failure risk.
@@ -109,10 +109,45 @@ They reject obvious parsing artifacts, such as a three-digit oxygen saturation a
 Scanned PDFs require OCR; unfamiliar labels and layouts can defeat regex; the AI may be wrong; trends lack full clinical context; the API needs per-user authorization; and no clinical accuracy result should be claimed without an evaluation.
 
 ### 33. What would you improve next?
-Add OCR, enforce authenticated per-user data isolation, build API and frontend integration tests, label a diverse privacy-safe evaluation corpus, record extraction provenance, and consider a medical NER model only if its data and evaluation can be justified.
+Add OCR, enforce authenticated per-user data isolation, build broader API/frontend integration tests, evaluate the ML classifier on an independent and privacy-safe labelled report corpus, record extraction provenance, and consider a medical NER or layout-aware model only if its dataset and evaluation can be justified.
 
 ### 34. What happens if Gemini is unavailable?
 The backend can try configured fallback models for temporary capacity errors. If no model succeeds, the API returns an error; vital parsing and already-extracted text are separate steps.
 
 ### 35. What should you demonstrate in the viva?
 Use a fictional/sample PDF, show source text, extract vitals, review and save values, show trend charts, search report history, compare two saved sample reports, export a CSV, and explain a parser test and one privacy limitation. Never demonstrate using another person's real medical data.
+
+## Experimental machine-learning module
+
+### 36. Which ML algorithm is used?
+A supervised text-classification pipeline using TF-IDF character n-gram features and logistic regression. It predicts one of seven labels: heart rate, SpO₂, paired blood pressure, systolic blood pressure, diastolic blood pressure, temperature, or other text.
+
+### 37. What is TF-IDF?
+Term Frequency–Inverse Document Frequency represents text features by weighing terms according to how frequently they occur in a line and how informative they are across the training corpus. This project uses character n-grams rather than only whole words, so the model can learn substrings, abbreviations, and small spelling variations.
+
+### 38. Why character n-grams?
+Medical report text contains abbreviations, punctuation differences, inconsistent spaces, and variations such as SpO2 versus SpO 2. Character fragments can help the classifier recognize these patterns. They do not guarantee robustness to every hospital template or OCR error.
+
+### 39. Why logistic regression?
+Logistic regression is a lightweight supervised classifier that learns a decision boundary from vectorized examples and can return class scores/probabilities. It is straightforward to train, test, and explain for a student project.
+
+### 40. What are the training and test datasets?
+backend/data/vital_line_dataset.csv contains authored synthetic labelled examples for seven categories. backend/data/vital_line_eval.csv is a separate authored synthetic holdout used by evaluate_ml_classifier.py. They are not actual patient reports, and their results cannot be generalized to clinical documents.
+
+### 41. What happens after the classifier predicts a line label?
+The extraction module uses a constrained number parser for that category and returns the candidate value with the original source line, predicted label, and classifier confidence. Plausibility checks reject obvious format artifacts. The user still needs to verify the value against the PDF.
+
+### 42. Is the model's confidence the same as accuracy?
+No. Confidence is a score from the fitted classifier for a particular line. Accuracy is measured over labelled examples by comparing predictions with their known labels. Neither model confidence nor line-classification accuracy alone proves that an extracted vital value is medically correct.
+
+### 43. Why keep the rule-based extractor?
+It serves as a deterministic baseline that is simple to explain and test. The ML endpoint allows a separate experimental comparison. Running both helps identify cases where a pattern rule or line classifier misses a report format.
+
+### 44. How do you evaluate the ML classifier?
+Run python evaluate_ml_classifier.py from the backend directory. It trains on the training CSV and reports accuracy, per-class precision, recall and F1, plus a confusion matrix on the separate synthetic holdout. For a credible project evaluation, also assemble manually labelled, privacy-safe real-report snippets and keep them independent from model development.
+
+### 45. Does this make HealthScan AI clinically accurate?
+No. It demonstrates an end-to-end supervised ML pipeline for line classification on a small synthetic dataset. It is not clinically validated, and a label can still be wrong, a nearby number can be misread, and many PDF layouts are unsupported.
+
+### 46. Why train lazily?
+The classifier is fitted on the first ML-extraction request in each backend worker, then cached in memory for subsequent requests. This avoids retraining on every API call. The small synthetic dataset keeps training lightweight; a larger production model would normally use a controlled training pipeline and versioned artifacts.
