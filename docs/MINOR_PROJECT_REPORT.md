@@ -209,7 +209,17 @@ Run from the backend directory:
 python evaluate_ml_classifier.py
 ~~~
 
-The script trains on backend/data/vital_line_dataset.csv and evaluates seven-way line labels using the separate backend/data/vital_line_eval.csv file. It reports line-label accuracy, per-class precision/recall/F1 and a confusion matrix. The holdout contains authored synthetic examples rather than actual medical reports. Treat the numbers only as a check that the model learns the small authored classification task; they are not extraction accuracy or clinical accuracy. Keep the holdout separate from further rule/model tuning and replace it with independently labelled, privacy-safe examples before making generalization claims.
+The script trains on backend/data/vital_line_dataset.csv and evaluates seven-way line labels using the separate backend/data/vital_line_eval.csv file. It reports line-label accuracy, per-class precision/recall/F1 and a confusion matrix. The holdout contains authored synthetic examples rather than actual medical reports.
+
+Observed result from the completed CI run:
+- Training examples: 117 authored synthetic lines.
+- Holdout examples: 40 authored synthetic lines.
+- Line-label accuracy: 95.0%.
+- Macro precision / recall / F1: 0.959 / 0.943 / 0.944.
+- Weighted precision / recall / F1: 0.964 / 0.950 / 0.951.
+- Two observed errors: “SBP measurement: 121” and “DBP measurement: 76” were classified as paired blood pressure, rather than systolic and diastolic respectively.
+
+These results measure seven-way line-label classification on this small authored corpus. They are not vital-value extraction accuracy or clinical accuracy. The result shows the model learned the sample categories but still confuses some blood-pressure abbreviations. Replace the synthetic holdout with a much larger, independently labelled, privacy-safe dataset before making generalization claims.
 
 ## 12. Security, privacy and responsible use
 
