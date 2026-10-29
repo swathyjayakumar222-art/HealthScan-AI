@@ -1,0 +1,41 @@
+text,label
+"Heart rate (bpm) = 74",heart_rate
+"Pulse registered: 89 beats/min",heart_rate
+"Resting pulse 63 bpm",heart_rate
+"HR reading 101 bpm",heart_rate
+"Heart rate noted as 77",heart_rate
+"SPO2 value 97%",spo2
+"Oxygen saturation = 94 percent",spo2
+"O2 sat measured at 98%",spo2
+"Blood oxygen saturation was 96",spo2
+"SpO 2 reading: 99",spo2
+"BP (mmHg) 117/75",blood_pressure
+"Blood pressure was 126/81",blood_pressure
+"BP reading - 109/69",blood_pressure
+"Blood pressure = 136/87 mmHg",blood_pressure
+"BP value 123/79",blood_pressure
+"Systolic BP reading: 128",systolic_bp
+"Systolic pressure was 117",systolic_bp
+"Systolic blood pressure (mmHg) 133",systolic_bp
+"SBP measurement: 121",systolic_bp
+"Systolic value is 115",systolic_bp
+"Diastolic BP reading: 73",diastolic_bp
+"Diastolic pressure was 83",diastolic_bp
+"Diastolic blood pressure (mmHg) 78",diastolic_bp
+"DBP measurement: 76",diastolic_bp
+"Diastolic value is 71",diastolic_bp
+"Body temp: 36.9 °C",temperature
+"Temperature (F): 99.1",temperature
+"Temp reading 37.4 Celsius",temperature
+"Body temperature = 101.1 F",temperature
+"Temperature value: 36.2 C",temperature
+"Patient weight: 72 kg",other
+"Medical record number: 123456",other
+"Blood glucose measured 108 mg/dL",other
+"Follow-up appointment in 14 days",other
+"Lab test result was 97",other
+"Date of test: 2026-11-02",other
+"Reference interval: 60-100",other
+"Albumin result 4.2 g/dL",other
+"Age of patient is 64",other
+"Report page number 12",other
