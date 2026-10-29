@@ -1415,3 +1415,79 @@
 @media print {
   .section-nav { display: none; }
 }
+
+
+/* Experimental ML classifier trace and transparency */
+.ml-action-button {
+  background: linear-gradient(115deg, #5b4bb7, #7c5bc4) !important;
+  box-shadow: 0 5px 15px rgba(100, 75, 180, .16) !important;
+}
+.ml-action-button:hover { background: linear-gradient(115deg, #4e3da8, #704fb6) !important; }
+.ml-method-note {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  color: #554a7b;
+  background: #f7f3ff;
+  border: 1px solid #e4dafb;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.75;
+}
+.ml-method-note strong { color: #493785; }
+.ml-prediction-trace {
+  margin: 18px 0 14px;
+  padding: 15px;
+  background: #f9f7ff;
+  border: 1px solid #e7dff9;
+  border-radius: 13px;
+}
+.ml-prediction-trace .panel-title-row { margin-bottom: 12px; }
+.ml-prediction-trace .panel-title-row h3 { margin: 0 0 5px; font-size: 14px; }
+.prediction-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.prediction-item {
+  min-width: 0;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e9e2f7;
+  border-radius: 10px;
+}
+.prediction-label {
+  display: inline-block;
+  color: #5c468c;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: capitalize;
+}
+.prediction-confidence {
+  float: right;
+  color: #4a6680;
+  font-size: 10px;
+  font-weight: 900;
+}
+.prediction-item p {
+  clear: both;
+  margin-top: 6px;
+  color: #617487;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.rejected-candidates {
+  margin: 0 0 14px;
+  padding: 11px 13px;
+  border: 1px solid #ebdfc8;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #775f3e;
+  font-size: 11px;
+}
+.rejected-candidates summary { font-weight: 800; cursor: pointer; }
+.rejected-candidates p { margin-top: 9px; overflow-wrap: anywhere; line-height: 1.65; }
+.rejected-candidates span { color: #8f795a; font-size: 10px; }
+@media (max-width: 680px) {
+  .prediction-list { grid-template-columns: 1fr; }
+}
+@media print {
+  .ml-method-note, .ml-prediction-trace, .rejected-candidates { break-inside: avoid; }
+}
