@@ -201,7 +201,7 @@ def extract_vitals_ml(
 
     for line_number, line in enumerate(lines, start=1):
         probabilities = model.predict_proba([line])[0]
-        classes = list(model.classes_)
+        classes = list(model.named_steps["classifier"].classes_)
         best_index = max(range(len(probabilities)), key=lambda index: probabilities[index])
         label = str(classes[best_index])
         confidence = float(probabilities[best_index])
