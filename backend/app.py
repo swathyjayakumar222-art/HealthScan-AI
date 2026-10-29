@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from google import genai
 from vital_extractor import FIELDS as VITAL_FIELDS, PARSE_BOUNDS, extract_vitals as extract_vitals_explainably
+from ml_vital_extractor import extract_vitals_ml
 
 
 # ============================================================
@@ -790,6 +791,46 @@ def extract_vitals():
         app.logger.exception("EXTRACT VITALS ERROR")
         return jsonify({
             "message": "Could not extract vitals. Check the text format and try again."
+        }), 500
+
+
+# ============================================================
+# EXPERIMENTAL ML VITAL EXTRACTION API
+# ============================================================
+
+@app.route("/api/ml-extract-vitals", methods=["POST"])
+def ml_extract_vitals():
+    try:
+        data = request.get_json(silent=True) or {}
+        text = data.get("text", "")
+        threshold = data.get("confidence_threshold", 0.42)
+
+        if not isinstance(text, str) or not text.strip():
+            return jsonify({"message": "No report text provided."}), 400
+        if len(text) > 250_000:
+            return jsonify({
+                "message": "Report text is too long for extraction (maximum 250,000 characters)."
+            }), 413
+        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+            return jsonify({"message": "Confidence threshold must be a number between 0 and 1."}), 400
+        if not 0 <= threshold <= 1:
+            return jsonify({"message": "Confidence threshold must be between 0 and 1."}), 400
+
+        result = extract_vitals_ml(text, float(threshold))
+        result["found_count"] = sum(
+            value is not None for value in (result.get("vitals") or {}).values()
+        )
+        result["message"] = (
+            "Experimental ML extraction completed. Review the source evidence and verify every value against the PDF."
+        )
+        return jsonify(result), 200
+
+    except ValueError as error:
+        return jsonify({"message": str(error)}), 400
+    except Exception:
+        app.logger.exception("ML VITAL EXTRACTION ERROR")
+        return jsonify({
+            "message": "The experimental ML extractor could not process this report. Check the backend logs."
         }), 500
 
 
