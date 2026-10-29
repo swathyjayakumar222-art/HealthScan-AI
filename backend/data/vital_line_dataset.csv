@@ -1,0 +1,118 @@
+text,label
+"Heart Rate: 72 bpm",heart_rate
+"Heart rate = 81",heart_rate
+"Pulse: 69 bpm",heart_rate
+"Pulse rate: 76 beats/min",heart_rate
+"HR: 88 bpm",heart_rate
+"Resting heart rate 64 bpm",heart_rate
+"Heart-rate reading: 92",heart_rate
+"Heart rate (bpm) 78",heart_rate
+"Pulse rate recorded as 83",heart_rate
+"Pulse: 71 beats/min",heart_rate
+"HR = 74",heart_rate
+"Heart rate: 67 per minute",heart_rate
+"Heart rate value 102 bpm",heart_rate
+"Measured pulse 79 bpm",heart_rate
+"Pulse frequency: 85 beats/min",heart_rate
+"Heart rate was 90",heart_rate
+"Pulse measured at 73 bpm",heart_rate
+"HR (beats/min): 66",heart_rate
+"Pulse rate - 96 bpm",heart_rate
+"Resting pulse: 62",heart_rate
+"SpO2: 98%",spo2
+"SpO 2: 97 percent",spo2
+"Oxygen saturation: 96%",spo2
+"O2 sat: 94%",spo2
+"O2 saturation = 99%",spo2
+"SpO2 value 95 percent",spo2
+"Oxygen saturation measured at 97",spo2
+"Blood oxygen saturation: 98%",spo2
+"SpO2 (percent) 96",spo2
+"Oxygen sat: 93 percent",spo2
+"SpO2 was recorded as 99%",spo2
+"Pulse oximetry: SpO2 97%",spo2
+"Peripheral oxygen saturation: 95%",spo2
+"SpO2 reading - 98",spo2
+"O2 saturation level 96%",spo2
+"Blood pressure: 120/80 mmHg",blood_pressure
+"BP: 118/76",blood_pressure
+"Blood Pressure = 124/82",blood_pressure
+"BP (mmHg): 110/70",blood_pressure
+"Blood pressure recorded as 132/84",blood_pressure
+"BP was 116/74 mmHg",blood_pressure
+"Blood pressure reading: 121/79",blood_pressure
+"BP 128/86",blood_pressure
+"Blood pressure: 105 / 68",blood_pressure
+"BP measurement 119/77 mmHg",blood_pressure
+"Blood pressure (systolic/diastolic) 125/80",blood_pressure
+"BP - 134/88",blood_pressure
+"Blood Pressure: 115/75 mmHg",blood_pressure
+"BP=122/78",blood_pressure
+"Blood pressure 130/85",blood_pressure
+"Systolic: 122 mmHg",systolic_bp
+"Systolic BP: 134",systolic_bp
+"Systolic blood pressure = 129",systolic_bp
+"Systolic reading 116 mmHg",systolic_bp
+"Systolic pressure: 140",systolic_bp
+"Systolic BP recorded at 118",systolic_bp
+"Systolic value - 125 mmHg",systolic_bp
+"Systolic measurement: 131",systolic_bp
+"Systolic was 121 mmHg",systolic_bp
+"SBP: 127 mmHg",systolic_bp
+"Upper blood pressure: 119",systolic_bp
+"Systolic (mmHg) 123",systolic_bp
+"Systolic pressure measured as 136",systolic_bp
+"Systolic BP = 114 mmHg",systolic_bp
+"SYS pressure 126",systolic_bp
+"Diastolic: 78 mmHg",diastolic_bp
+"Diastolic BP: 82",diastolic_bp
+"Diastolic blood pressure = 84",diastolic_bp
+"Diastolic reading 76 mmHg",diastolic_bp
+"Diastolic pressure: 90",diastolic_bp
+"Diastolic BP recorded at 74",diastolic_bp
+"Diastolic value - 81 mmHg",diastolic_bp
+"Diastolic measurement: 79",diastolic_bp
+"Diastolic was 72 mmHg",diastolic_bp
+"DBP: 77 mmHg",diastolic_bp
+"Lower blood pressure: 75",diastolic_bp
+"Diastolic (mmHg) 80",diastolic_bp
+"Diastolic pressure measured as 86",diastolic_bp
+"Diastolic BP = 68 mmHg",diastolic_bp
+"Temperature: 36.8 C",temperature
+"Body temperature: 37.2 °C",temperature
+"Temp: 98.6 F",temperature
+"Temperature = 36.9 Celsius",temperature
+"Body temp 37.0 C",temperature
+"Temp recorded as 100.4 F",temperature
+"Body temperature 36.5 degrees C",temperature
+"Temperature reading: 37.1",temperature
+"Temp was 38 C",temperature
+"Temperature (C): 36.7",temperature
+"Body temperature is 98.2 F",temperature
+"Temp = 36.4 C",temperature
+"Patient temperature: 37 C",temperature
+"Body temperature reading 36.6 C",temperature
+"Temperature measured at 39 C",temperature
+"Patient age: 72 years",other
+"Report identifier: 12080",other
+"Appointment date: 2026-10-29",other
+"Hemoglobin: 13.5 g/dL",other
+"Creatinine result: 1.1 mg/dL",other
+"White blood cell count: 7200",other
+"Platelet count: 245000",other
+"Glucose: 110 mg/dL",other
+"Reference range: 70-100",other
+"Sample number 987654",other
+"Patient ID: 120/80",other
+"Follow-up in 30 days",other
+"No abnormality detected",other
+"Report generated on 10/29/2026",other
+"Cholesterol level: 180 mg/dL",other
+"Height: 170 cm; Weight: 64 kg",other
+"Vitamin D: 24 ng/mL",other
+"Lab result code 98%",other
+"Age 67, visit 2026-10-12",other
+"Urine pH is 6.0",other
+"Glucose level was 98",other
+"Patient name: Sample Patient",other
+"Diagnosis section follows below",other
