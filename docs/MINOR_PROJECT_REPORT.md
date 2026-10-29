@@ -16,13 +16,14 @@ Medical reports contain dense text, abbreviations, numerical measurements, and r
 
 1. Extract selectable text from uploaded PDF reports.
 2. Detect heart rate, oxygen saturation, systolic blood pressure, diastolic blood pressure, and temperature.
-3. Normalize Fahrenheit temperature to Celsius for consistent storage.
-4. Generate an optional AI-assisted explanation in everyday language while stating uncertainty.
-5. Save manually entered or reviewed extracted readings in MySQL.
-6. Visualize saved readings and calculate first-to-latest differences.
-7. Maintain searchable report history and compare two reports using the same extraction rules.
-8. Support CSV export and provide health-literacy reference material.
-9. Test parser edge cases and document safety and privacy limitations.
+3. Implement and evaluate an experimental supervised ML classifier for vital-related report lines alongside a deterministic baseline.
+4. Normalize Fahrenheit temperature to Celsius for consistent storage.
+5. Generate an optional AI-assisted explanation in everyday language while stating uncertainty.
+6. Save manually entered or reviewed extracted readings in MySQL.
+7. Visualize saved readings and calculate first-to-latest differences.
+8. Maintain searchable report history and compare two reports using the same extraction rules.
+9. Support CSV export and provide health-literacy reference material.
+10. Test parser edge cases and document safety and privacy limitations.
 
 ## 4. Existing/manual approach and proposed approach
 
@@ -36,6 +37,8 @@ Medical reports contain dense text, abbreviations, numerical measurements, and r
 - A React dashboard provides report ingestion, data entry, history, charts, report comparison, and export.
 - A Flask REST API uses PyPDF to extract selectable PDF text.
 - A deterministic, label-aware parser detects supported vital fields and returns null when a measurement is not found.
+- An experimental supervised ML classifier using TF-IDF character n-grams and logistic regression labels each report line as one of seven categories. A constrained parser then extracts a number only for the predicted category.
+- The rule-based extractor and ML extractor can be run separately for a demonstration and comparison. Neither can claim medical accuracy without a real labelled evaluation.
 - A separate Gemini API call generates a plain-language explanation of report text. It is not treated as the source of extracted measurements.
 - MySQL stores report and vital records when the database is available.
 - Analytics summarizes saved values without claiming that a trend is a diagnosis.
@@ -66,7 +69,8 @@ flowchart TD
 | Frontend | React, Vite, CSS | Dashboard, forms, charts, report library, comparison and export |
 | API | Python, Flask | HTTP endpoints, validation, file handling and orchestration |
 | PDF processing | PyPDF | Extract selectable text from PDF pages |
-| Vital parsing | Python regular expressions | Find values near supported labels, apply broad numeric bounds and normalize temperature |
+| Vital parsing baseline | Python regular expressions | Find values near supported labels, apply broad numeric bounds and normalize temperature |
+| Supervised ML | scikit-learn: TfidfVectorizer + LogisticRegression | Classify report lines into vital categories and unrelated text |
 | AI explanation | Google Gemini API using google-genai | Produce a separate plain-language explanation |
 | Database | MySQL | Store users, vital readings, report text and generated analysis |
 | Deployment | Vercel, Render, managed MySQL | Host frontend, backend and database |
@@ -82,19 +86,29 @@ The upload endpoint accepts PDF files within the configured size limit. PyPDF re
 ### 7.3 Vital-sign extraction
 The parser looks for labels and nearby values. Supported fields include heart rate, SpO₂, combined blood pressure or separate systolic/diastolic labels, and temperature. Fahrenheit values are converted to Celsius. Values outside broad plausibility bounds are omitted instead of returned. The parser may miss unfamiliar layouts or match a nearby number incorrectly; results must be reviewed against the original document.
 
-### 7.4 AI-assisted explanation
+### 7.4 Experimental supervised ML vital-line classifier
+
+The ML endpoint (/api/ml-extract-vitals) uses character n-gram TF-IDF features followed by logistic regression to classify each non-empty line into one of seven labels: heart rate, SpO₂, combined blood pressure, systolic blood pressure, diastolic blood pressure, temperature, or other text. Character n-grams learn patterns in word fragments and abbreviations without requiring a large language model.
+
+The starter corpus is available in backend/data/vital_line_dataset.csv and contains authored synthetic line/label examples. A separate synthetic holdout file (backend/data/vital_line_eval.csv) is used by the evaluation script. The model trains lazily on the first ML extraction request in each backend worker process and caches the fitted classifier in memory for later requests.
+
+After classification, a constrained parser attempts to extract a supported number only from the corresponding line and category. The result includes a source snippet, predicted label, class probability, number of detected fields, and low-confidence lines skipped. The displayed confidence score is not a calibrated probability that the vital value is correct.
+
+This is an ML experiment, not a medical NER model trained on actual patient records. Synthetic examples demonstrate the pipeline, but can produce misleadingly strong evaluation scores. Real-world claims require a larger independently labelled and privacy-safe evaluation corpus.
+
+### 7.5 AI-assisted explanation
 The explanation service uses a separate request to Gemini and instructs it not to invent values, diagnose conditions, prescribe medication, or label a value high or low without supporting report evidence. AI output is probabilistic and may be incomplete or inaccurate.
 
-### 7.5 History and persistence
+### 7.6 History and persistence
 MySQL tables store vital readings and uploaded reports. The report library supports keyword search and loading a saved report back into the analysis workflow. Database availability affects whether reports and their explanations can be persisted.
 
-### 7.6 Trend analytics
+### 7.7 Trend analytics
 Charts use saved numeric records. The trend summary calculates the difference between the first and latest available numeric measurements for each field. A direction or difference describes recorded data; it does not establish whether a person's health is improving or worsening.
 
-### 7.7 Report comparison
+### 7.8 Report comparison
 The comparison module runs the same vital parser on two saved report texts and presents the extracted values and arithmetic differences in a table. Users are reminded to confirm both values against their source documents.
 
-### 7.8 Export and health-literacy guide
+### 7.9 Export and health-literacy guide
 Users can export stored vital history as CSV and print/save a page summary. Health-literacy cards describe broad adult reference points with caveats about individual context; they are not personalized medical advice.
 
 ## 8. Algorithms
@@ -143,7 +157,8 @@ Stores an identifier, filename, extracted report text, optional AI explanation, 
 | GET / POST | /api/vitals | Read or store a measurement |
 | GET | /api/reports | Retrieve saved report history |
 | POST | /api/upload-report | Upload PDF and extract selectable text |
-| POST | /api/extract-vitals | Parse supported values from report text |
+| POST | /api/extract-vitals | Parse supported values from report text using rules |
+| POST | /api/ml-extract-vitals | Experimental supervised ML line classification and value extraction |
 | POST | /api/analyze-report | Request a Gemini explanation |
 | PUT | /api/reports/{report_id}/analysis | Save or update explanation text |
 
@@ -186,6 +201,16 @@ Also record exact-match accuracy per field, units, report layout, missing-value 
 | Held-out real-world report evaluation | Not performed |
 | Known failure cases | Scanned PDFs without OCR, unfamiliar labels, ambiguous units, and numbers incorrectly associated with nearby labels |
 
+### Supervised ML line-classification evaluation
+
+Run from the backend directory:
+
+~~~bash
+python evaluate_ml_classifier.py
+~~~
+
+The script trains on backend/data/vital_line_dataset.csv and evaluates seven-way line labels using the separate backend/data/vital_line_eval.csv file. It reports line-label accuracy, per-class precision/recall/F1 and a confusion matrix. The holdout contains authored synthetic examples rather than actual medical reports. Treat the numbers only as a check that the model learns the small authored classification task; they are not extraction accuracy or clinical accuracy. Keep the holdout separate from further rule/model tuning and replace it with independently labelled, privacy-safe examples before making generalization claims.
+
 ## 12. Security, privacy and responsible use
 
 - Keep API keys, database passwords and CA certificates in server-side environment variables or secret files.
@@ -211,15 +236,15 @@ Also record exact-match accuracy per field, units, report layout, missing-value 
 
 - Add OCR for scanned reports and an OCR-confidence indicator.
 - Add authenticated sessions, row-level user ownership, consent, audit logging and access controls.
-- Evaluate on a diverse, privacy-safe labelled dataset and compare extraction rules against a documented baseline.
-- Explore a medical named-entity recognition model only if an appropriate labelled corpus, train/test separation and evaluation plan are available.
+- Evaluate the starter classifier on a larger, independently labelled and privacy-safe set of real report snippets; compare it with the rule-based baseline.
+- Explore medical named-entity recognition or layout-aware models only if a suitable labelled corpus, train/test separation, compute budget and evaluation plan are available.
 - Add robust unit conversion and provenance for every extracted field.
 - Add automated API and frontend integration tests.
 - Support downloadable report summaries and user-controlled data deletion.
 
 ## 15. Conclusion
 
-HealthScan AI demonstrates an integrated workflow across PDF processing, text parsing, AI-assisted explanation, relational storage, visualization, report history and report comparison. Its purpose is to make report data easier to inspect and track while keeping source values, calculated trends and AI-generated prose distinct. The next priorities are measured extraction quality and stronger data protection before any real health information is used.
+HealthScan AI demonstrates an integrated workflow across PDF processing, rule-based parsing, supervised ML line classification, AI-assisted explanation, relational storage, visualization, report history and report comparison. Its purpose is to make report data easier to inspect and track while keeping source values, model predictions, calculated trends and AI-generated prose distinct. The starter classifier demonstrates an end-to-end supervised ML pipeline, but its synthetic corpus cannot establish performance on real reports. The next priorities are independent real-report evaluation and stronger data protection before any real health information is used.
 
 ## 16. References
 
