@@ -84,6 +84,7 @@ These screenshots were provided from the current redesigned website and show the
 - Returns per-line predicted category, source snippet, confidence, detected fields, coverage and low-confidence lines skipped.
 - Includes a separate authored synthetic holdout corpus at `backend/data/vital_line_eval.csv` and a reproducible classification report.
 - The starter training and evaluation rows are synthetic, authored examples—not labelled clinical documents. Evaluation scores do not represent performance on real reports.
+- Latest completed CI evaluation: **95.0% line-label accuracy**, macro F1 **0.944** on 40 synthetic holdout lines (trained from 117 synthetic examples). It confused the abbreviations “SBP measurement” and “DBP measurement” with paired blood pressure; see the project report for the details. This score is not a real-report or medical accuracy estimate.
 
 ### 4. AI-assisted report explanation
 - Uses the **Google Gemini API** to generate an explanation distinct from the structured extraction results.
