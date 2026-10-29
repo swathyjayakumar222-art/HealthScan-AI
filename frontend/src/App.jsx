@@ -197,6 +197,7 @@ function App() {
   const [analysisError, setAnalysisError] = useState("");
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [mlExtracting, setMLExtracting] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [savingExtracted, setSavingExtracted] = useState(false);
   const [historyQuery, setHistoryQuery] = useState("");
@@ -365,6 +366,7 @@ function App() {
       setErrorMessage("");
       setReportText("");
       setExtractedVitals(null);
+                    setExtractionMeta(null);
       setExtractionMeta(null);
       setAnalysis("");
       setAnalysisError("");
@@ -417,6 +419,45 @@ function App() {
       setErrorMessage(error.message || "Vital extraction failed.");
     } finally {
       setExtracting(false);
+    }
+  }
+
+  async function handleMLExtractVitals() {
+    if (!reportText.trim()) {
+      setErrorMessage("Upload a text-based PDF or load a report from history first.");
+      return;
+    }
+    try {
+      setMLExtracting(true);
+      setMessage("");
+      setErrorMessage("");
+      const data = await apiRequest("/ml-extract-vitals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: reportText, confidence_threshold: 0.42 }),
+        signal: AbortSignal.timeout(30000),
+      });
+      setExtractedVitals(data.vitals ?? {});
+      setExtractionMeta({
+        engine: data.engine || "Experimental ML vital-line classifier",
+        algorithm: data.algorithm || "TF-IDF + logistic regression",
+        training_examples: data.training_examples ?? null,
+        training_corpus: data.training_corpus || "Synthetic labelled line examples",
+        quality: data.quality || null,
+        evidence: data.evidence || {},
+        validation_notes: data.validation_notes || [],
+        predictions: data.predictions || [],
+        rejected_candidates: data.rejected_candidates || [],
+        disclaimer: data.disclaimer || "",
+      });
+      setMessage(
+        (data.found_count ?? 0) +
+        " measurement(s) detected using the experimental ML classifier. Verify every value against the source PDF."
+      );
+    } catch (error) {
+      setErrorMessage(error.message || "The experimental ML extractor failed.");
+    } finally {
+      setMLExtracting(false);
     }
   }
 
@@ -488,6 +529,7 @@ function App() {
     setReportText(item.report_text || "");
     setAnalysis(item.ai_analysis || "");
     setExtractedVitals(null);
+                    setExtractionMeta(null);
     setExtractionMeta(null);
     setAnalysisError("");
     setMessage("Loaded " + (item.filename || "saved report") + ". You can extract values or regenerate the explanation.");
@@ -736,6 +778,7 @@ function App() {
                     setReportId(null);
                     setExtractedVitals(null);
                     setExtractionMeta(null);
+                    setExtractionMeta(null);
                     setAnalysis("");
                     setAnalysisError("");
                     setSelectedHistoryId(null);
@@ -745,11 +788,13 @@ function App() {
                 <button className="primary-button" type="submit" disabled={uploading || !report}>{uploading ? "Reading PDF…" : "1. Upload & extract text"}</button>
               </form>
               <div className="report-actions">
-                <button type="button" onClick={handleExtractVitals} disabled={extracting || !reportText.trim()}>{extracting ? "Finding values…" : "2. Extract vitals"}</button>
-                <button type="button" onClick={handleAnalyzeReport} disabled={analyzing || !reportText.trim()}>{analyzing ? "Generating explanation…" : "3. Explain with AI"}</button>
+                <button type="button" onClick={handleExtractVitals} disabled={extracting || mlExtracting || !reportText.trim()}>{extracting ? "Finding values…" : "2. Extract with rules"}</button>
+                <button type="button" className="ml-action-button" onClick={handleMLExtractVitals} disabled={extracting || mlExtracting || !reportText.trim()}>{mlExtracting ? "Training / classifying…" : "3. Try ML extractor ✧"}</button>
+                <button type="button" onClick={handleAnalyzeReport} disabled={analyzing || !reportText.trim()}>{analyzing ? "Generating explanation…" : "4. Explain with AI"}</button>
               </div>
-              <div className="workflow-note"><span className="workflow-number">A</span><p><strong>Structured extraction</strong><br />Finds supported numbers near vital labels. Always verify each value against the PDF.</p></div>
-              <div className="workflow-note"><span className="workflow-number">B</span><p><strong>AI explanation</strong><br />Uses Gemini to explain the text in plain language; the generated content may be wrong or incomplete.</p></div>
+              <div className="workflow-note"><span className="workflow-number">A</span><p><strong>Rule-based extraction</strong><br />Uses explicit label patterns. Review the matched source line before saving.</p></div>
+              <div className="workflow-note"><span className="workflow-number">M</span><p><strong>Experimental supervised ML</strong><br />A TF-IDF + logistic-regression model classifies report lines, then extracts values from the predicted vital category. Its starter training corpus is synthetic, not labelled patient data.</p></div>
+              <div className="workflow-note"><span className="workflow-number">B</span><p><strong>AI explanation</strong><br />Uses Gemini to explain report text in plain language; generated content may be wrong or incomplete.</p></div>
             </div>
             <div className="report-text-panel">
               <div className="panel-title-row"><div><h3>Extracted source text</h3><p>Review the original text sent to the extraction and explanation steps.</p></div><span className="panel-pill">{reportText ? reportText.length.toLocaleString() + " characters" : "No text yet"}</span></div>
@@ -768,7 +813,25 @@ function App() {
                   {extractionMeta.quality.nonempty_lines != null && (
                     <div><strong>Text scanned</strong><span>{extractionMeta.quality.nonempty_lines} non-empty lines</span></div>
                   )}
+                  {extractionMeta.quality.classified_vital_lines != null && (
+                    <div><strong>ML-classified lines</strong><span>{extractionMeta.quality.classified_vital_lines}</span></div>
+                  )}
+                  {extractionMeta.quality.mean_predicted_confidence != null && (
+                    <div><strong>Mean classifier confidence</strong><span>{Math.round(extractionMeta.quality.mean_predicted_confidence * 100)}% <em>(not accuracy)</em></span></div>
+                  )}
+                  {extractionMeta.quality.low_confidence_lines_skipped != null && (
+                    <div><strong>Low-confidence lines skipped</strong><span>{extractionMeta.quality.low_confidence_lines_skipped}</span></div>
+                  )}
                 </div>
+              )}
+              {extractionMeta?.algorithm && (
+                <div className="ml-method-note">
+                  <strong>ML method:</strong> {extractionMeta.algorithm}.{" "}
+                  <strong>Training examples:</strong> {extractionMeta.training_examples ?? "n/a"}.{" "}
+                  <strong>Training source:</strong> {extractionMeta.training_corpus}. These are authored synthetic examples; confidence and coverage are not real-world accuracy.
+                </div>
+              )}
+              {Boolean(extractionMeta?.validation_notes?.length) && (
               )}
               {Boolean(extractionMeta?.validation_notes?.length) && (
                 <div className="parser-warning" role="note">
@@ -777,6 +840,28 @@ function App() {
                     <li key={String(note.field || "flag") + "-" + index}><strong>{note.label || String(note.field || "Value")}{note.value != null ? ": " + note.value : ""}</strong> — {note.message}</li>
                   ))}</ul>
                 </div>
+              )}
+              {Boolean(extractionMeta?.predictions?.length) && (
+                <div className="ml-prediction-trace">
+                  <div className="panel-title-row"><div><h3>ML line-classification trace</h3><p>Predicted categories and model confidence for lines used by the experimental extractor.</p></div><span className="panel-pill">{extractionMeta.predictions.length} matched lines</span></div>
+                  <div className="prediction-list">
+                    {extractionMeta.predictions.map((item, index) => (
+                      <div className="prediction-item" key={String(item.line_number || index) + "-" + index}>
+                        <span className="prediction-label">{String(item.predicted_label || "").replaceAll("_", " ")}</span>
+                        <span className="prediction-confidence">{Math.round(Number(item.confidence || 0) * 100)}%</span>
+                        <p>{item.snippet}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {Boolean(extractionMeta?.rejected_candidates?.length) && (
+                <details className="rejected-candidates">
+                  <summary>{extractionMeta.rejected_candidates.length} low-confidence line(s) skipped by the ML model</summary>
+                  {extractionMeta.rejected_candidates.map((item, index) => (
+                    <p key={String(item.line_number || index) + "-" + index}>{item.snippet} <span>{Math.round(Number(item.confidence || 0) * 100)}% · {item.predicted_label}</span></p>
+                  ))}
+                </details>
               )}
               <div className="extracted-vitals-grid">
                 {extractedItems.map((item) => {
