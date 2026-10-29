@@ -69,27 +69,36 @@ These screenshots were provided from the current redesigned website and show the
 - Reports when no selectable text is found; scanned image PDFs require OCR, which is not currently built into the extraction pipeline.
 
 ### 2. Structured vital extraction
-- Uses label-aware rules for heart rate, oxygen saturation (SpO₂), blood pressure, and body temperature.
-- Shows the source line and matching rule for each supported value when available.
-- Returns parser coverage metadata and review flags; coverage is explicitly not an accuracy score.
+- Provides a rule-based baseline for heart rate, oxygen saturation (SpO₂), blood pressure, and body temperature.
+- Includes an experimental supervised ML extractor: character n-gram TF-IDF features + logistic regression classify each report line, then a constrained parser extracts values only from the predicted vital category.
+- Shows source-line evidence, matched rules or predicted ML categories, model confidence and parser warnings when available.
+- Returns field coverage metadata; coverage and classifier confidence are not accuracy scores.
 - Converts Fahrenheit temperature to Celsius for consistent history storage.
 - Marks unsupported values as missing rather than inventing measurements and asks users to verify extracted results against the source PDF.
-- Lets users review and save supported extracted measurements to their vital history.
+- Lets users compare rule-based and ML extraction workflows and save reviewed readings to their vital history.
 
-### 3. AI-assisted report explanation
+### 3. Experimental ML-based vital-line classification
+- Uses a supervised **TF-IDF character n-gram + logistic-regression** classifier to label report lines as heart rate, SpO₂, paired blood pressure, systolic BP, diastolic BP, temperature, or unrelated text.
+- Loads labelled examples from `backend/data/vital_line_dataset.csv` and trains the classifier lazily on first ML extraction request in each backend worker.
+- The classifier is followed by constrained number parsing and broad format bounds; it does not diagnose a condition.
+- Returns per-line predicted category, source snippet, confidence, detected fields, coverage and low-confidence lines skipped.
+- Includes a separate authored synthetic holdout corpus at `backend/data/vital_line_eval.csv` and a reproducible classification report.
+- The starter training and evaluation rows are synthetic, authored examples—not labelled clinical documents. Evaluation scores do not represent performance on real reports.
+
+### 4. AI-assisted report explanation
 - Uses the **Google Gemini API** to generate an explanation distinct from the structured extraction results.
 - Organizes the explanation into a report summary, important values, supported reference-range observations, a plain-language explanation, and questions to discuss with a clinician.
 - Tries configured fallback Flash models when the primary model reports temporary capacity errors.
 - Shows progress and actionable messages for common configuration or provider errors.
 
-### 4. Vital tracking and visualizations
+### 5. Vital tracking and visualizations
 - Supports manual entry of heart rate, SpO₂, systolic/diastolic blood pressure, and temperature.
 - Stores readings in MySQL.
 - Visualizes only saved numeric readings over time; it does not mix demo chart values into real history.
 - Calculates transparent first-to-latest differences for numeric fields when at least two values are available.
 - Includes trend summaries with plain-language cautions that describe data patterns, not medical improvement or deterioration.
 
-### 5. User and report records
+### 6. User and report records
 - Includes backend signup and login endpoints with password hashing.
 - Stores report text and generated analysis where database persistence succeeds.
 - Provides diagnostic endpoints for API and database connectivity.
@@ -122,11 +131,15 @@ These screenshots were provided from the current redesigned website and show the
 flowchart TD
     U[User uploads a PDF] --> P[Flask API + PyPDF]
     P --> T[Extract selectable PDF text]
-    T --> V[Explainable vital extraction]
+    T --> V[Rule-based vital extraction]
+    T --> M[Supervised ML line classifier]
     T --> G[Google Gemini report explanation]
-    V --> R[Values + matched source evidence + parser notes]
+    V --> R[Values + matched source evidence]
+    M --> ML[Predicted line category + confidence]
+    ML --> MR[Reviewable ML vital values]
     G --> A[Plain-language AI explanation]
     R --> S[User verifies and optionally saves readings]
+    MR --> S
     S --> D[(MySQL database)]
     D --> C[Saved history, trends, report comparison and CSV export]
 ~~~
@@ -141,7 +154,7 @@ Vital extraction and AI explanation are **separate operations**: the explainable
 | Styling | CSS | Responsive layout, forms, cards, and chart presentation |
 | Backend | Python, Flask | REST API and report processing |
 | PDF processing | PyPDF | Extracts selectable text from PDF pages |
-| Measurement extraction | Explainable Python rules + regular expressions | Finds supported values, matched source lines, and parse-quality metadata |
+| Measurement extraction | Python rules + supervised scikit-learn classifier | Rule-based baseline and experimental TF-IDF/logistic-regression vital-line classification |
 | AI | Google Gemini API, <code>google-genai</code> | Generates a report explanation |
 | Database | MySQL | Stores vital readings, users, and report records |
 | Database hosting | Aiven | Managed MySQL service in the deployed setup |
@@ -154,9 +167,12 @@ Vital extraction and AI explanation are **separate operations**: the explainable
 HealthScan-AI/
 ├── backend/
 │   ├── app.py                 # Flask routes, PDF processing, Gemini, MySQL
-│   ├── vital_extractor.py     # Explainable parser, source evidence and quality notes
-│   ├── evaluate_extraction.py # Synthetic regression evaluation and metrics
-│   ├── tests/                 # Parser regression tests
+│   ├── vital_extractor.py     # Explainable rule-based extractor
+│   ├── ml_vital_extractor.py  # Supervised line classifier + constrained extraction
+│   ├── data/                  # Synthetic labelled train/holdout corpora
+│   ├── evaluate_extraction.py # Rule-based synthetic regression evaluation
+│   ├── evaluate_ml_classifier.py # ML holdout classification metrics
+│   ├── tests/                 # Parser and ML regression tests
 │   ├── requirements.txt       # Python dependencies
 │   └── gunicorn.conf.py       # Production request timeout settings
 ├── frontend/
@@ -283,11 +299,12 @@ For Render, add backend secrets in **Render → service → Environment**. Never
 | POST | <code>/api/vitals</code> | Save a vital measurement record |
 | GET | <code>/api/reports</code> | Retrieve stored report records |
 | POST | <code>/api/upload-report</code> | Upload PDF and extract selectable text |
-| POST | <code>/api/extract-vitals</code> | Extract supported vital values from text |
+| POST | <code>/api/extract-vitals</code> | Extract supported vital values using explainable rules |
+| POST | <code>/api/ml-extract-vitals</code> | Experimental supervised ML line classification and vital extraction |
 | POST | <code>/api/analyze-report</code> | Generate an AI-assisted explanation |
 | PUT | <code>/api/reports/{report_id}/analysis</code> | Save or update a report explanation |
 
-## Run tests and reproduce the extraction evaluation
+## Run tests and reproduce the extraction evaluations
 
 From the repository root, run backend regression tests:
 
@@ -302,7 +319,15 @@ Run the small synthetic evaluation corpus:
 python evaluate_extraction.py
 ~~~
 
-The evaluation script prints exact agreement and per-field precision, recall and F1 for its authored synthetic examples. These values measure only agreement on that tiny regression corpus; **they are not real-world or clinical accuracy estimates**. For project evaluation, create a separate manually labelled test set of privacy-safe report snippets and measure performance without tuning on the held-out examples.
+The rule-based script prints exact agreement and per-field precision, recall and F1 for its authored synthetic examples. These values measure only agreement on that small regression corpus; **they are not real-world or clinical accuracy estimates**.
+
+Evaluate the supervised ML line classifier on its separate synthetic holdout set:
+
+~~~bash
+python evaluate_ml_classifier.py
+~~~
+
+This reports seven-class line-label accuracy, precision, recall, F1, and a confusion matrix for the held-out synthetic lines. The model uses **TF-IDF character n-grams + logistic regression** trained on `data/vital_line_dataset.csv`. The separate `data/vital_line_eval.csv` file is not used during training. These authored examples demonstrate the evaluation process; they are not a substitute for a diverse, manually labelled set of actual report snippets. Avoid uploading real patient documents without appropriate consent and data protection.
 
 Build the frontend:
 
